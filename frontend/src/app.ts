@@ -157,28 +157,28 @@ type TableRecordMap = {
   [T in keyof typeof structure.tables]: InferType<(typeof structure.tables)[T]['columns']>
 };
 
-// DOM elements
-const studentsBtn = document.getElementById('students-btn') as HTMLButtonElement;
-const subjectsBtn = document.getElementById('subjects-btn') as HTMLButtonElement;
-const enrollmentsBtn = document.getElementById('enrollments-btn') as HTMLButtonElement;
-
+// DOM elements (derive nav buttons from `structure.tables` keys to avoid duplication)
 const viewTitle = document.getElementById('view-title') as HTMLElement;
 const addRecordBtn = document.getElementById('add-record-btn') as HTMLButtonElement;
 const formContainer = document.getElementById('record-form') as HTMLElement;
 const sharedTable = document.getElementById('records-table') as HTMLTableElement;
 
-const tableNavButtons: Record<TableKey, HTMLButtonElement> = {
-  students: studentsBtn,
-  subjects: subjectsBtn,
-  enrollments: enrollmentsBtn,
-};
+const tableKeys = Object.keys(structure.tables) as TableKey[];
+const navContainer = document.getElementById('table-nav') as HTMLElement | null;
+if (!navContainer) throw new Error('Missing #table-nav element in DOM');
 
-let activeTableKey: TableKey = 'students';
+const tableNavButtons = {} as Record<TableKey, HTMLButtonElement>;
+for (const key of tableKeys) {
+  const cfg = structure.tables[key];
+  const btn = document.createElement('button');
+  btn.id = `${key}-btn`;
+  btn.textContent = cfg.title ?? cfg.uiName;
+  navContainer.appendChild(btn);
+  tableNavButtons[key] = btn;
+  btn.addEventListener('click', () => showSection(key));
+}
 
-// Navigation
-studentsBtn.addEventListener('click', () => showSection('students'));
-subjectsBtn.addEventListener('click', () => showSection('subjects'));
-enrollmentsBtn.addEventListener('click', () => showSection('enrollments'));
+let activeTableKey: TableKey = tableKeys[0] as TableKey;
 
 function showSection(section: TableKey) {
   activeTableKey = section;
@@ -423,6 +423,6 @@ window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: strin
 };
 
 // Initialize
-showSection('students');
+showSection(activeTableKey);
 
 export {};
