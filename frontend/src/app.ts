@@ -30,6 +30,8 @@ type TableStructure = {
   columns: Record<string, ColumnDef>
   pk: string | string[]
   uiName: string
+  title?: string
+  addButtonLabel?: string
   endpoint? : string
 }
 
@@ -55,7 +57,9 @@ const structure = {
         ]},
       },
       pk: 'numero_libreta',
-      uiName: 'Student'
+      uiName: 'Student',
+      title: 'Alumnos / Students',
+      addButtonLabel: 'Agregar Alumno / Add Student'
     } satisfies TableStructure,
     subjects: {
       columns:{
@@ -66,7 +70,9 @@ const structure = {
         department  :{type: 'string', label: 'Departamento / Department:'},
       },
       pk: 'cod_mat',
-      uiName: 'Subject'
+      uiName: 'Subject',
+      title: 'Materias / Subjects',
+      addButtonLabel: 'Agregar Materia / Add Subject'
     } satisfies TableStructure,
     enrollments: {
         pk: ['numero_libreta', 'cod_mat'],
@@ -84,7 +90,10 @@ const structure = {
             { value: 'failed', label: 'Fallido / Failed' },
           ] }
         }
-    } satisfies TableStructure
+      ,
+        title: 'Inscripciones / Enrollments',
+        addButtonLabel: 'Agregar Inscripción / Add Enrollment'
+      } satisfies TableStructure
   }
 }
 
@@ -102,77 +111,68 @@ const studentsBtn = document.getElementById('students-btn') as HTMLButtonElement
 const subjectsBtn = document.getElementById('subjects-btn') as HTMLButtonElement;
 const enrollmentsBtn = document.getElementById('enrollments-btn') as HTMLButtonElement;
 
-const studentsSection = document.getElementById('students-section') as HTMLElement;
-const subjectsSection = document.getElementById('subjects-section') as HTMLElement;
-const enrollmentsSection = document.getElementById('enrollments-section') as HTMLElement;
+const viewTitle = document.getElementById('view-title') as HTMLElement;
+const addRecordBtn = document.getElementById('add-record-btn') as HTMLButtonElement;
+const formContainer = document.getElementById('record-form') as HTMLElement;
+const sharedTable = document.getElementById('records-table') as HTMLTableElement;
 
-const addStudentBtn = document.getElementById('add-student-btn') as HTMLButtonElement;
-const addSubjectBtn = document.getElementById('add-subject-btn') as HTMLButtonElement;
-const addEnrollmentBtn = document.getElementById('add-enrollment-btn') as HTMLButtonElement;
+const tableNavButtons: Record<TableKey, HTMLButtonElement> = {
+  students: studentsBtn,
+  subjects: subjectsBtn,
+  enrollments: enrollmentsBtn,
+};
 
-const studentsForm = document.getElementById('students-form') as HTMLElement;
-const subjectsForm = document.getElementById('subjects-form') as HTMLElement;
-const enrollmentsForm = document.getElementById('enrollments-form') as HTMLElement;
-
-const studentsTable = document.getElementById('students-table') as HTMLTableElement;
-const subjectsTable = document.getElementById('subjects-table') as HTMLTableElement;
-const enrollmentsTable = document.getElementById('enrollments-table') as HTMLTableElement;
+let activeTableKey: TableKey = 'students';
 
 // Navigation
 studentsBtn.addEventListener('click', () => showSection('students'));
 subjectsBtn.addEventListener('click', () => showSection('subjects'));
 enrollmentsBtn.addEventListener('click', () => showSection('enrollments'));
 
-function showSection(section: string) {
-  // Hide all sections
-  studentsSection.classList.remove('active');
-  subjectsSection.classList.remove('active');
-  enrollmentsSection.classList.remove('active');
+function showSection(section: TableKey) {
+  activeTableKey = section;
 
-  // Remove active class from buttons
-  studentsBtn.classList.remove('active');
-  subjectsBtn.classList.remove('active');
-  enrollmentsBtn.classList.remove('active');
+  Object.entries(tableNavButtons).forEach(([key, button]) => {
+    button.classList.toggle('active', key === section);
+  });
 
-  // Show selected section
-  switch (section) {
-    case 'students':
-      studentsSection.classList.add('active');
-      studentsBtn.classList.add('active');
-      loadStudents();
-      break;
-    case 'subjects':
-      subjectsSection.classList.add('active');
-      subjectsBtn.classList.add('active');
-      loadSubjects();
-      break;
-    case 'enrollments':
-      enrollmentsSection.classList.add('active');
-      enrollmentsBtn.classList.add('active');
-      loadEnrollments();
-      break;
-  }
+  const tableConfig = structure.tables[section];
+  viewTitle.textContent = tableConfig.title || `${tableConfig.uiName} / ${toLabel(section)}`;
+  addRecordBtn.textContent = tableConfig.addButtonLabel || `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`;
+  hideAnyForm();
+  loadTableData(section);
 }
 
 //Load 
-async function loadTableData(tableElement: HTMLTableElement, structureKey: keyof typeof structure.tables) {
+async function loadTableData(structureKey: TableKey) {
   const tableConfig = structure.tables[structureKey] as any;
   const endpoint = tableConfig.endpoint || structureKey;
   try {
     const response = await fetch(`${API_BASE}/${endpoint}`);
     let data = await response.json();
-    renderAnyTable(tableElement, tableConfig, data);
+    renderAnyTable(structureKey, tableConfig, data);
   } catch (error) {
     console.error(`Error loading ${endpoint}:`, error);
   }
 }
-const loadStudents = () => loadTableData(studentsTable, 'students');
-const loadSubjects = () => loadTableData(subjectsTable, 'subjects');
-const loadEnrollments = () => loadTableData(enrollmentsTable, 'enrollments');
+const loadStudents = () => loadTableData('students');
+const loadSubjects = () => loadTableData('subjects');
+const loadEnrollments = () => loadTableData('enrollments');
 
-function renderAnyTable(tableElement: HTMLTableElement, tableStructure: TableStructure, records: Record<string, any>[]){
-  const tbody = tableElement.querySelector('tbody')!;
+function renderAnyTable(tableKey: TableKey, tableStructure: TableStructure, records: Record<string, any>[]){
+  const thead = sharedTable.querySelector('thead')!;
+  const tbody = sharedTable.querySelector('tbody')!;
+  thead.innerHTML = '';
   tbody.innerHTML = '';
+
+  thead.innerHTML = `
+    <tr>
+      ${Object.entries(tableStructure.columns)
+        .map(([name, column]) => `<th>${column.label || toLabel(name)}</th>`)
+        .join('')}
+      <th>Acciones / Actions</th>
+    </tr>
+  `;
 
   records.forEach(record => {
     const {pk, uiName} = tableStructure;
@@ -197,34 +197,20 @@ function renderAnyTable(tableElement: HTMLTableElement, tableStructure: TableStr
 // Render table functions
 function renderStudentsTable(students: Student[]) {
   console.log(`viendo los estudiantes que arrancan con ${students[0].first_name}`)
-  return renderAnyTable(studentsTable, structure.tables.students, students);
+  return renderAnyTable('students', structure.tables.students, students);
 }
 
 function renderSubjectsTable(subjects: Subject[]) {
-  return renderAnyTable(subjectsTable, structure.tables.subjects, subjects);
+  return renderAnyTable('subjects', structure.tables.subjects, subjects);
 }
 
 function renderEnrollmentsTable(enrollments: Enrollment[]) {
-  return renderAnyTable(enrollmentsTable, structure.tables.enrollments, enrollments);}
+  return renderAnyTable('enrollments', structure.tables.enrollments, enrollments);}
 
 // Form functions
 type TableKey = keyof typeof structure.tables;
 
-const formContainers: Record<TableKey, HTMLElement> = {
-  students: studentsForm,
-  subjects: subjectsForm,
-  enrollments: enrollmentsForm,
-};
-
-const tableReloaders: Record<TableKey, () => void> = {
-  students: loadStudents,
-  subjects: loadSubjects,
-  enrollments: loadEnrollments,
-};
-
-addStudentBtn.addEventListener('click', () => showAnyForm('students'));
-addSubjectBtn.addEventListener('click', () => showAnyForm('subjects'));
-addEnrollmentBtn.addEventListener('click', () => showAnyForm('enrollments'));
+addRecordBtn.addEventListener('click', () => showAnyForm(activeTableKey));
 
 function toLabel(fieldName: string): string {
   return fieldName
@@ -313,8 +299,9 @@ function collectFormData(tableKey: TableKey): Record<string, any> {
   return payload;
 }
 
-function hideAnyForm(tableKey: TableKey): void {
-  formContainers[tableKey].style.display = 'none';
+function hideAnyForm(): void {
+  formContainer.style.display = 'none';
+  formContainer.innerHTML = '';
 }
 
 async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Promise<void> {
@@ -328,18 +315,18 @@ async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Pr
     .map(([fieldName, column]) => renderFormField(tableKey, fieldName, column, record, isEdit))
     .join('');
 
-  formContainers[tableKey].innerHTML = `
+  formContainer.innerHTML = `
     <form id="${formId}">
       <h3>${isEdit ? `Editar ${tableConfig.uiName} / Edit ${tableConfig.uiName}` : `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`}</h3>
       ${fieldsHtml}
       <div class="form-actions">
         <button type="submit">${isEdit ? 'Actualizar / Update' : 'Agregar / Add'}</button>
-        <button type="button" class="cancel-btn" onclick="hideAnyForm('${tableKey}')">Cancelar / Cancel</button>
+        <button type="button" class="cancel-btn" onclick="hideAnyForm()">Cancelar / Cancel</button>
       </div>
     </form>
   `;
 
-  formContainers[tableKey].style.display = 'block';
+  formContainer.style.display = 'block';
 
   const form = document.getElementById(formId) as HTMLFormElement | null;
   if (!form) return;
@@ -360,36 +347,12 @@ async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Pr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      hideAnyForm(tableKey);
-      tableReloaders[tableKey]();
+      hideAnyForm();
+      loadTableData(tableKey);
     } catch (error) {
       console.error(`Error saving ${tableConfig.uiName.toLowerCase()}:`, error);
     }
   });
-}
-
-function showStudentForm(student?: Student): void {
-  showAnyForm('students', student as Record<string, any> | undefined);
-}
-
-function showSubjectForm(subject?: Subject): void {
-  showAnyForm('subjects', subject as Record<string, any> | undefined);
-}
-
-function showEnrollmentForm(enrollment?: Enrollment): void {
-  showAnyForm('enrollments', enrollment as Record<string, any> | undefined);
-}
-
-function hideStudentForm(): void {
-  hideAnyForm('students');
-}
-
-function hideSubjectForm(): void {
-  hideAnyForm('subjects');
-}
-
-function hideEnrollmentForm(): void {
-  hideAnyForm('enrollments');
 }
 
 (window as any).hideAnyForm = hideAnyForm;
@@ -399,7 +362,7 @@ function hideEnrollmentForm(): void {
   try {
     const response = await fetch(`${API_BASE}/students/${numero_libreta}`);
     const student: Student = await response.json();
-    showStudentForm(student);
+    showAnyForm('students', student);
   } catch (error) {
     console.error('Error loading student for edit:', error);
   }
@@ -420,7 +383,7 @@ function hideEnrollmentForm(): void {
   try {
     const response = await fetch(`${API_BASE}/subjects/${cod_mat}`);
     const subject: Subject = await response.json();
-    showSubjectForm(subject);
+    showAnyForm('subjects', subject);
   } catch (error) {
     console.error('Error loading subject for edit:', error);
   }
@@ -441,7 +404,7 @@ function hideEnrollmentForm(): void {
   try {
     const response = await fetch(`${API_BASE}/enrollments/${numero_libreta}/${cod_mat}`);
     const enrollment: Enrollment = await response.json();
-    showEnrollmentForm(enrollment);
+    showAnyForm('enrollments', enrollment);
   } catch (error) {
     console.error('Error loading enrollment for edit:', error);
   }
