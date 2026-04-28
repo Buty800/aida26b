@@ -168,21 +168,45 @@ function renderAnyTable(tableKey: TableKey, records: Record<string, any>[]){
   `;
 
   records.forEach(record => {
-    const {pk} = tableStructure;
+    const { pk } = tableStructure;
     const pkFields = Array.isArray(pk) ? pk : [pk];
-    const actionArgs = [tableKey, ...pkFields.map((field) => String(record[field] ?? ''))]
-      .map((value) => `'${encodeURIComponent(value)}'`)
-      .join(', ');
     const row = document.createElement('tr');
-    row.innerHTML = 
-      Object.values(tableStructure.columns).map((column) => `<td>${record[column.name] ?? ''}</td>`).join('')
-      +
-    `
-      <td class="actions">
-        <button class="edit-btn" onclick="editRecord(${actionArgs})">Editar / Edit</button>
-        <button class="delete-btn" onclick="deleteRecord(${actionArgs})">Eliminar / Delete</button>
-      </td>
-    `;
+
+    // create data cells
+    Object.entries(tableStructure.columns).forEach(([name]) => {
+      const td = document.createElement('td');
+      td.textContent = String((record as any)[name] ?? '');
+      row.appendChild(td);
+    });
+
+    // actions cell with event listeners (avoid inline onclick/double-encoding)
+    const actionsTd = document.createElement('td');
+    actionsTd.className = 'actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-btn';
+    editBtn.textContent = 'Editar / Edit';
+    editBtn.dataset.table = String(tableKey);
+    editBtn.dataset.pk = JSON.stringify(pkFields.map((field) => String((record as any)[field] ?? '')));
+    editBtn.addEventListener('click', (e) => {
+      const pkValues = JSON.parse((e.currentTarget as HTMLElement).dataset.pk || '[]');
+      (window as any).editRecord(tableKey, ...pkValues);
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.textContent = 'Eliminar / Delete';
+    deleteBtn.dataset.table = String(tableKey);
+    deleteBtn.dataset.pk = editBtn.dataset.pk;
+    deleteBtn.addEventListener('click', (e) => {
+      const pkValues = JSON.parse((e.currentTarget as HTMLElement).dataset.pk || '[]');
+      (window as any).deleteRecord(tableKey, ...pkValues);
+    });
+
+    actionsTd.appendChild(editBtn);
+    actionsTd.appendChild(deleteBtn);
+    row.appendChild(actionsTd);
+
     tbody.appendChild(row);
   });
 }
