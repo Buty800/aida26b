@@ -30,7 +30,7 @@ type RendererProps = {
   id: string;
   fieldName: string;
   column: ColumnDef;
-  record?: Record<string, Student|Subject|Enrollment>;
+  record?: Record<string, unknown>;
   isEdit?: boolean;
 }
 
@@ -137,11 +137,13 @@ const structure = {
 
 
 
-type Student = InferType<typeof structure.tables.students.columns>;
+type TableKey = keyof typeof structure.tables;
 
-type Subject = InferType<typeof structure.tables.subjects.columns>;
-
-type Enrollment = InferType<typeof structure.tables.enrollments.columns>;
+type TableRecordMap = {
+  students: InferType<typeof structure.tables.students.columns>;
+  subjects: InferType<typeof structure.tables.subjects.columns>;
+  enrollments: InferType<typeof structure.tables.enrollments.columns>;
+};
 
 // DOM elements
 const studentsBtn = document.getElementById('students-btn') as HTMLButtonElement;
@@ -181,17 +183,17 @@ function showSection(section: TableKey) {
 }
 
 //Load 
-async function loadTableData(tableKey: TableKey) {    
+async function loadTableData<K extends TableKey>(tableKey: K) {    
   try {
     const response = await fetch(`${API_BASE}/${tableKey}`);
-    let data = await response.json();
+    const data = (await response.json()) as TableRecordMap[K][];
     renderAnyTable(tableKey, data);
   } catch (error) {
     console.error(`Error loading ${tableKey}:`, error);
   }
 }
 
-function renderAnyTable(tableKey: TableKey, records: Record<string, any>[]){
+function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap[K][]) {
   const thead = sharedTable.querySelector('thead')!;
   const tbody = sharedTable.querySelector('tbody')!;
   const tableStructure = structure.tables[tableKey];
@@ -207,15 +209,16 @@ function renderAnyTable(tableKey: TableKey, records: Record<string, any>[]){
     </tr>
   `;
 
-  records.forEach(record => {
+  records.forEach((record) => {
     const { pk } = tableStructure;
     const pkFields = Array.isArray(pk) ? pk : [pk];
     const row = document.createElement('tr');
+    const columnNames = Object.keys(tableStructure.columns) as Array<keyof TableRecordMap[K] & string>;
 
     // create data cells
-    Object.entries(tableStructure.columns).forEach(([name]) => {
+    columnNames.forEach((name) => {
       const td = document.createElement('td');
-      td.textContent = String((record as any)[name] ?? '');
+      td.textContent = String(record[name] ?? '');
       row.appendChild(td);
     });
 
@@ -227,7 +230,7 @@ function renderAnyTable(tableKey: TableKey, records: Record<string, any>[]){
     editBtn.className = 'edit-btn';
     editBtn.textContent = 'Editar / Edit';
     editBtn.dataset.table = String(tableKey);
-    editBtn.dataset.pk = JSON.stringify(pkFields.map((field) => String((record as any)[field] ?? '')));
+    editBtn.dataset.pk = JSON.stringify(pkFields.map((field) => String(record[field as keyof TableRecordMap[K]] ?? '')));
     editBtn.addEventListener('click', (e) => {
       const pkValues = JSON.parse((e.currentTarget as HTMLElement).dataset.pk || '[]');
       (window as any).editRecord(tableKey, ...pkValues);
@@ -252,9 +255,6 @@ function renderAnyTable(tableKey: TableKey, records: Record<string, any>[]){
 }
 
 
-// Form functions
-type TableKey = keyof typeof structure.tables;
-
 addRecordBtn.addEventListener('click', () => showAnyForm(activeTableKey));
 
 function getPkFields(tableKey: TableKey): string[] {
@@ -267,7 +267,7 @@ function getFieldElementId(tableKey: TableKey, fieldName: string): string {
 }
 
 
-function renderFormField(tableKey: TableKey, fieldName: string, column: ColumnDef, record?: Record<string, any>, isEdit = false): HTMLElement {
+function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof TableRecordMap[K] & string, column: ColumnDef, record?: Partial<TableRecordMap[K]>, isEdit = false): HTMLElement {
   const id = getFieldElementId(tableKey, fieldName);
   const labelText = column.label ?? '';
   const wrapper = document.createElement('div');
@@ -283,9 +283,9 @@ function renderFormField(tableKey: TableKey, fieldName: string, column: ColumnDe
   return wrapper;
 }
 
-function collectFormData(tableKey: TableKey): Record<string, any> {
+function collectFormData<K extends TableKey>(tableKey: K): Partial<TableRecordMap[K]> {
   const tableConfig = structure.tables[tableKey];
-  const payload: Record<string, any> = {};
+  const payload: Partial<TableRecordMap[K]> = {};
 
   Object.entries(tableConfig.columns)
     .filter(([, column]) => column.editable !== false)
@@ -296,14 +296,14 @@ function collectFormData(tableKey: TableKey): Record<string, any> {
 
       if (column.type === 'number') {
         if (rawValue === '') {
-          payload[fieldName] = column.nullable ? null : 0;
+          payload[fieldName as keyof TableRecordMap[K]] = (column.nullable ? null : 0) as TableRecordMap[K][keyof TableRecordMap[K]];
         } else {
-          payload[fieldName] = Number(rawValue);
+          payload[fieldName as keyof TableRecordMap[K]] = Number(rawValue) as TableRecordMap[K][keyof TableRecordMap[K]];
         }
         return;
       }
 
-      payload[fieldName] = rawValue;
+      payload[fieldName as keyof TableRecordMap[K]] = rawValue as TableRecordMap[K][keyof TableRecordMap[K]];
     });
 
   return payload;
@@ -318,14 +318,14 @@ function hideAnyForm(): void {
   formContainer.innerHTML = '';
 }
 
-async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Promise<void> {
+async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<TableRecordMap[K]>): Promise<void> {
   const tableConfig = structure.tables[tableKey];
   const isEdit = !!record;
   const formId = `${tableKey}-form`;
 
   const fields = Object.entries(tableConfig.columns)
     .filter(([, column]) => column.editable !== false)
-    .map(([fieldName, column]) => renderFormField(tableKey, fieldName, column, record, isEdit));
+    .map(([fieldName, column]) => renderFormField(tableKey, fieldName as keyof TableRecordMap[K] & string, column, record, isEdit));
 
   // build form DOM
   formContainer.innerHTML = '';
@@ -358,8 +358,8 @@ async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Pr
     const payload = collectFormData(tableKey);
 
     const pkPath = isEdit
-      ? `/${getPkFields(tableKey)
-          .map((fieldName) => encodeURIComponent(String(payload[fieldName] ?? record?.[fieldName] ?? '')))
+        ? `/${getPkFields(tableKey)
+          .map((fieldName) => encodeURIComponent(String((payload as Record<string, unknown>)[fieldName] ?? (record as Record<string, unknown> | undefined)?.[fieldName] ?? '')))
           .join('/')}`
       : '';
 
@@ -380,17 +380,17 @@ async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Pr
 (window as any).hideAnyForm = hideAnyForm;
 
 // Global functions for onclick
-(window as any).editRecord = async (tableKey: TableKey, ...pkValues: string[]) => {
+(window as any).editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
   try {
     const response = await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`);
-    const record = await response.json();
+    const record = (await response.json()) as TableRecordMap[K];
     showAnyForm(tableKey, record);
   } catch (error) {
     console.error(`Error loading ${tableKey} for edit:`, error);
   }
 };
 
-(window as any).deleteRecord = async (tableKey: TableKey, ...pkValues: string[]) => {
+(window as any).deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
   const tableConfig = structure.tables[tableKey];
   if (confirm(`¿Está seguro de que desea eliminar este ${tableConfig.uiName.toLowerCase()}? / Are you sure you want to delete this ${tableConfig.uiName.toLowerCase()}?`)) {
     try {
