@@ -14,7 +14,6 @@ type TypeMap = {
 
 type MyTypeNames = keyof TypeMap;
 
-
 type ColumnDef = {
   type: MyTypeNames;
   label?: string;
@@ -26,36 +25,37 @@ type ColumnDef = {
   nullable?: boolean;
 }
 
-type RendererProps = {
-  id: string;
-  fieldName: string;
-  column: ColumnDef;
-  record?: Record<string, unknown>;
-  isEdit?: boolean;
-}
 
-const renderers: Record<string, (props: RendererProps) => HTMLElement> = {
-  input: ({id, fieldName, column, record, isEdit}) => {
+type RendererProps<K extends TableKey> = {
+  id: string;
+  fieldName: keyof TableRecordMap[K] & string;
+  column: ColumnDef;
+  record?: Partial<TableRecordMap[K]>;
+  isEdit?: boolean;
+};
+
+const renderers = {
+  input<K extends TableKey>({ id, fieldName, column, record, isEdit }: RendererProps<K>) {
     const inp = document.createElement('input');
     inp.id = id;
-    inp.type = column.input ?? 'text';
-    if (!!column.required) inp.required = true;
-    if (isEdit && !!column.readonlyOnEdit) inp.readOnly = true;
+    inp.type = column.input ?? (column.type === 'number' ? 'number' : 'text');
+    if (column.required) inp.required = true;
+    if (isEdit && column.readonlyOnEdit) inp.readOnly = true;
     (inp as HTMLInputElement).value = String(record?.[fieldName] ?? '');
     return inp;
   },
-  textarea: ({id, fieldName, column, record}) => {
+  textarea<K extends TableKey>({ id, fieldName, column, record }: RendererProps<K>) {
     const ta = document.createElement('textarea');
     ta.id = id;
-    if (!!column.required) ta.required = true;
+    if (column.required) ta.required = true;
     (ta as HTMLTextAreaElement).value = String(record?.[fieldName] ?? '');
     return ta;
   },
-  select: ({id, fieldName, column, record}) => {
+  select<K extends TableKey>({ id, fieldName, column, record }: RendererProps<K>) {
     const sel = document.createElement('select');
     sel.id = id;
-    if (!!column.required) sel.required = true;
-    (column.options || []).forEach((opt) => {
+    if (column.required) sel.required = true;
+    (column.options || []).forEach((opt: { value: string; label: string }) => {
       const o = document.createElement('option');
       o.value = opt.value;
       o.textContent = opt.label;
@@ -65,6 +65,10 @@ const renderers: Record<string, (props: RendererProps) => HTMLElement> = {
     return sel;
   }
 };
+
+function getRenderer<K extends TableKey>(key: 'input' | 'textarea' | 'select') {
+  return (renderers as any)[key] as (props: RendererProps<K>) => HTMLElement;
+}
 
 type TableStructure = {
   columns: Record<string, ColumnDef>
@@ -277,8 +281,9 @@ function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof Table
   labelEl.htmlFor = id;
   labelEl.textContent = labelText;
   wrapper.appendChild(labelEl);
-  const rendererKey = column.input === 'textarea' || column.input === 'select' ? column.input : 'input';
-  const inputEl = renderers[rendererKey]({ id, fieldName, column, record, isEdit });
+  const rendererKey = (column.input === 'textarea' || column.input === 'select' ? column.input : 'input') as 'input' | 'textarea' | 'select';
+  const renderer = getRenderer<K>(rendererKey);
+  const inputEl = renderer({ id, fieldName, column, record, isEdit });
   wrapper.appendChild(inputEl);
   return wrapper;
 }
