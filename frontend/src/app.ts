@@ -66,7 +66,9 @@ const renderers = {
   }
 };
 
-function getRenderer<K extends TableKey>(key: 'input' | 'textarea' | 'select') {
+type RendererKey = keyof typeof renderers;
+
+function getRenderer<K extends TableKey>(key: RendererKey) {
   return (renderers as any)[key] as (props: RendererProps<K>) => HTMLElement;
 }
 
@@ -144,9 +146,7 @@ const structure = {
 type TableKey = keyof typeof structure.tables;
 
 type TableRecordMap = {
-  students: InferType<typeof structure.tables.students.columns>;
-  subjects: InferType<typeof structure.tables.subjects.columns>;
-  enrollments: InferType<typeof structure.tables.enrollments.columns>;
+  [T in keyof typeof structure.tables]: InferType<(typeof structure.tables)[T]['columns']>
 };
 
 // DOM elements
@@ -281,7 +281,7 @@ function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof Table
   labelEl.htmlFor = id;
   labelEl.textContent = labelText;
   wrapper.appendChild(labelEl);
-  const rendererKey = (column.input === 'textarea' || column.input === 'select' ? column.input : 'input') as 'input' | 'textarea' | 'select';
+  const rendererKey = ((column.input && (column.input as string) in renderers) ? column.input : 'input') as RendererKey;
   const renderer = getRenderer<K>(rendererKey);
   const inputEl = renderer({ id, fieldName, column, record, isEdit });
   wrapper.appendChild(inputEl);
