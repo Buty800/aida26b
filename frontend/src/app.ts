@@ -32,7 +32,6 @@ type TableStructure = {
   uiName: string
   title?: string
   addButtonLabel?: string
-  endpoint? : string
 }
 
 type InferType<FieldDefs extends Record<string, ColumnDef>> = {
@@ -135,49 +134,48 @@ function showSection(section: TableKey) {
   });
 
   const tableConfig = structure.tables[section];
-  viewTitle.textContent = tableConfig.title || `${tableConfig.uiName} / ${toLabel(section)}`;
+  viewTitle.textContent = tableConfig.title;
   addRecordBtn.textContent = tableConfig.addButtonLabel || `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`;
   hideAnyForm();
   loadTableData(section);
 }
 
 //Load 
-async function loadTableData(structureKey: TableKey) {
-  const tableConfig = structure.tables[structureKey] as any;
-  const endpoint = tableConfig.endpoint || structureKey;
+async function loadTableData(tableKey: TableKey) {    
   try {
-    const response = await fetch(`${API_BASE}/${endpoint}`);
+    const response = await fetch(`${API_BASE}/${tableKey}`);
     let data = await response.json();
-    renderAnyTable(structureKey, tableConfig, data);
+    renderAnyTable(tableKey, data);
   } catch (error) {
-    console.error(`Error loading ${endpoint}:`, error);
+    console.error(`Error loading ${tableKey}:`, error);
   }
 }
 
-function renderAnyTable(tableKey: TableKey, tableStructure: TableStructure, records: Record<string, any>[]){
+function renderAnyTable(tableKey: TableKey, records: Record<string, any>[]){
   const thead = sharedTable.querySelector('thead')!;
   const tbody = sharedTable.querySelector('tbody')!;
+  const tableStructure = structure.tables[tableKey];
   thead.innerHTML = '';
   tbody.innerHTML = '';
 
   thead.innerHTML = `
     <tr>
-      ${Object.entries(tableStructure.columns)
-        .map(([name, column]) => `<th>${column.label || toLabel(name)}</th>`)
+      ${Object.values(tableStructure.columns)
+        .map((column) => `<th>${column.label}</th>`)
         .join('')}
       <th>Acciones / Actions</th>
     </tr>
   `;
 
   records.forEach(record => {
-    const {pk, uiName} = tableStructure;
+    const {pk} = tableStructure;
     const pkFields = Array.isArray(pk) ? pk : [pk];
     const actionArgs = [tableKey, ...pkFields.map((field) => String(record[field] ?? ''))]
       .map((value) => `'${encodeURIComponent(value)}'`)
       .join(', ');
     const row = document.createElement('tr');
     row.innerHTML = 
-      Object.entries(tableStructure.columns).map(([name]) => `<td>${record[name] ?? ''}</td>`).join('')
+      Object.values(tableStructure.columns).map((column) => `<td>${record[column.name] ?? ''}</td>`).join('')
       +
     `
       <td class="actions">
@@ -195,13 +193,6 @@ type TableKey = keyof typeof structure.tables;
 
 addRecordBtn.addEventListener('click', () => showAnyForm(activeTableKey));
 
-function toLabel(fieldName: string): string {
-  return fieldName
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
-
 function getPkFields(tableKey: TableKey): string[] {
   const tableConfig = structure.tables[tableKey];
   return Array.isArray(tableConfig.pk) ? tableConfig.pk : [tableConfig.pk];
@@ -211,19 +202,14 @@ function getFieldElementId(tableKey: TableKey, fieldName: string): string {
   return `${tableKey}-${fieldName}`;
 }
 
-function getInputType(column: ColumnDef): string {
-  if (column.input) return column.input;
-  if (column.type === 'number') return 'number';
-  return 'text';
-}
 
 function renderFormField(tableKey: TableKey, fieldName: string, column: ColumnDef, record?: Record<string, any>, isEdit = false): string {
   const id = getFieldElementId(tableKey, fieldName);
-  const label = column.label || `${toLabel(fieldName)}:`;
+  const label = column.label ?? '';
   const value = record?.[fieldName] ?? '';
   const requiredAttr = column.required ? 'required' : '';
   const readonlyAttr = isEdit && column.readonlyOnEdit ? 'readonly' : '';
-  const inputType = getInputType(column);
+  const inputType = column.input ? column.input : 'text';
 
   if (inputType === 'textarea') {
     return `
@@ -282,7 +268,7 @@ function collectFormData(tableKey: TableKey): Record<string, any> {
   return payload;
 }
 
-function getRecordPath(tableKey: TableKey, recordValues: string[]): string {
+function getRecordPath(recordValues: string[]): string {
   return `/${recordValues.map((value) => encodeURIComponent(value)).join('/')}`;
 }
 
@@ -294,7 +280,6 @@ function hideAnyForm(): void {
 async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Promise<void> {
   const tableConfig = structure.tables[tableKey];
   const isEdit = !!record;
-  const endpoint = ('endpoint' in tableConfig && tableConfig.endpoint) ? tableConfig.endpoint : tableKey;
   const formId = `${tableKey}-form`;
 
   const fieldsHtml = Object.entries(tableConfig.columns)
@@ -329,7 +314,7 @@ async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Pr
       : '';
 
     try {
-      await fetch(`${API_BASE}/${endpoint}${pkPath}`, {
+      await fetch(`${API_BASE}/${tableKey}${pkPath}`, {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -347,9 +332,7 @@ async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Pr
 // Global functions for onclick
 (window as any).editRecord = async (tableKey: TableKey, ...pkValues: string[]) => {
   try {
-    const tableConfig = structure.tables[tableKey];
-    const endpoint = ('endpoint' in tableConfig && tableConfig.endpoint) ? tableConfig.endpoint : tableKey;
-    const response = await fetch(`${API_BASE}/${endpoint}${getRecordPath(tableKey, pkValues)}`);
+    const response = await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`);
     const record = await response.json();
     showAnyForm(tableKey, record);
   } catch (error) {
@@ -359,10 +342,9 @@ async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Pr
 
 (window as any).deleteRecord = async (tableKey: TableKey, ...pkValues: string[]) => {
   const tableConfig = structure.tables[tableKey];
-  const endpoint = ('endpoint' in tableConfig && tableConfig.endpoint) ? tableConfig.endpoint : tableKey;
   if (confirm(`¿Está seguro de que desea eliminar este ${tableConfig.uiName.toLowerCase()}? / Are you sure you want to delete this ${tableConfig.uiName.toLowerCase()}?`)) {
     try {
-      await fetch(`${API_BASE}/${endpoint}${getRecordPath(tableKey, pkValues)}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`, { method: 'DELETE' });
       loadTableData(tableKey);
     } catch (error) {
       console.error(`Error deleting ${tableKey}:`, error);
