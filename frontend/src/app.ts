@@ -26,6 +26,46 @@ type ColumnDef = {
   nullable?: boolean;
 }
 
+type RendererProps = {
+  id: string;
+  fieldName: string;
+  column: ColumnDef;
+  record?: Record<string, Student|Subject|Enrollment>;
+  isEdit?: boolean;
+}
+
+const renderers: Record<string, (props: RendererProps) => HTMLElement> = {
+  input: ({id, fieldName, column, record, isEdit}) => {
+    const inp = document.createElement('input');
+    inp.id = id;
+    inp.type = column.input ?? 'text';
+    if (!!column.required) inp.required = true;
+    if (isEdit && !!column.readonlyOnEdit) inp.readOnly = true;
+    (inp as HTMLInputElement).value = String(record?.[fieldName] ?? '');
+    return inp;
+  },
+  textarea: ({id, fieldName, column, record}) => {
+    const ta = document.createElement('textarea');
+    ta.id = id;
+    if (!!column.required) ta.required = true;
+    (ta as HTMLTextAreaElement).value = String(record?.[fieldName] ?? '');
+    return ta;
+  },
+  select: ({id, fieldName, column, record}) => {
+    const sel = document.createElement('select');
+    sel.id = id;
+    if (!!column.required) sel.required = true;
+    (column.options || []).forEach((opt) => {
+      const o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      if (String(record?.[fieldName] ?? '') === opt.value) o.selected = true;
+      sel.appendChild(o);
+    });
+    return sel;
+  }
+};
+
 type TableStructure = {
   columns: Record<string, ColumnDef>
   pk: string | string[]
@@ -227,43 +267,20 @@ function getFieldElementId(tableKey: TableKey, fieldName: string): string {
 }
 
 
-function renderFormField(tableKey: TableKey, fieldName: string, column: ColumnDef, record?: Record<string, any>, isEdit = false): string {
+function renderFormField(tableKey: TableKey, fieldName: string, column: ColumnDef, record?: Record<string, any>, isEdit = false): HTMLElement {
   const id = getFieldElementId(tableKey, fieldName);
-  const label = column.label ?? '';
-  const value = record?.[fieldName] ?? '';
-  const requiredAttr = column.required ? 'required' : '';
-  const readonlyAttr = isEdit && column.readonlyOnEdit ? 'readonly' : '';
-  const inputType = column.input ? column.input : 'text';
+  const labelText = column.label ?? '';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'form-group';
 
-  if (inputType === 'textarea') {
-    return `
-      <div class="form-group">
-        <label for="${id}">${label}</label>
-        <textarea id="${id}" ${requiredAttr}>${value}</textarea>
-      </div>
-    `;
-  }
-
-  if (inputType === 'select' && column.options) {
-    const options = column.options
-      .map((option) => `<option value="${option.value}" ${String(value) === option.value ? 'selected' : ''}>${option.label}</option>`)
-      .join('');
-    return `
-      <div class="form-group">
-        <label for="${id}">${label}</label>
-        <select id="${id}" ${requiredAttr}>
-          ${options}
-        </select>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="form-group">
-      <label for="${id}">${label}</label>
-      <input type="${inputType}" id="${id}" value="${value}" ${readonlyAttr} ${requiredAttr}>
-    </div>
-  `;
+  const labelEl = document.createElement('label');
+  labelEl.htmlFor = id;
+  labelEl.textContent = labelText;
+  wrapper.appendChild(labelEl);
+  const rendererKey = column.input === 'textarea' || column.input === 'select' ? column.input : 'input';
+  const inputEl = renderers[rendererKey]({ id, fieldName, column, record, isEdit });
+  wrapper.appendChild(inputEl);
+  return wrapper;
 }
 
 function collectFormData(tableKey: TableKey): Record<string, any> {
@@ -306,26 +323,35 @@ async function showAnyForm(tableKey: TableKey, record?: Record<string, any>): Pr
   const isEdit = !!record;
   const formId = `${tableKey}-form`;
 
-  const fieldsHtml = Object.entries(tableConfig.columns)
+  const fields = Object.entries(tableConfig.columns)
     .filter(([, column]) => column.editable !== false)
-    .map(([fieldName, column]) => renderFormField(tableKey, fieldName, column, record, isEdit))
-    .join('');
+    .map(([fieldName, column]) => renderFormField(tableKey, fieldName, column, record, isEdit));
 
-  formContainer.innerHTML = `
-    <form id="${formId}">
-      <h3>${isEdit ? `Editar ${tableConfig.uiName} / Edit ${tableConfig.uiName}` : `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`}</h3>
-      ${fieldsHtml}
-      <div class="form-actions">
-        <button type="submit">${isEdit ? 'Actualizar / Update' : 'Agregar / Add'}</button>
-        <button type="button" class="cancel-btn" onclick="hideAnyForm()">Cancelar / Cancel</button>
-      </div>
-    </form>
-  `;
+  // build form DOM
+  formContainer.innerHTML = '';
+  const form = document.createElement('form');
+  form.id = formId;
+  const h3 = document.createElement('h3');
+  h3.textContent = isEdit ? `Editar ${tableConfig.uiName} / Edit ${tableConfig.uiName}` : `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`;
+  form.appendChild(h3);
+  fields.forEach((f) => form.appendChild(f));
 
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'form-actions';
+  const submitBtn = document.createElement('button');
+  submitBtn.type = 'submit';
+  submitBtn.textContent = isEdit ? 'Actualizar / Update' : 'Agregar / Add';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'cancel-btn';
+  cancelBtn.textContent = 'Cancelar / Cancel';
+  cancelBtn.addEventListener('click', hideAnyForm);
+  actionsDiv.appendChild(submitBtn);
+  actionsDiv.appendChild(cancelBtn);
+  form.appendChild(actionsDiv);
+
+  formContainer.appendChild(form);
   formContainer.style.display = 'block';
-
-  const form = document.getElementById(formId) as HTMLFormElement | null;
-  if (!form) return;
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
