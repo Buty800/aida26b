@@ -33,8 +33,9 @@ type RendererProps<K extends TableKey> = {
   record?: Partial<TableRecordMap[K]>;
   isEdit?: boolean;
 };
+type RendererFunc = <K extends TableKey>(props: RendererProps<K>) => HTMLElement;
 
-const renderers = {
+const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
   input<K extends TableKey>({ id, fieldName, column, record, isEdit }: RendererProps<K>) {
     const inp = document.createElement('input');
     inp.id = id;
@@ -69,7 +70,14 @@ const renderers = {
 type RendererKey = keyof typeof renderers;
 
 function getRenderer<K extends TableKey>(key: RendererKey) {
-  return (renderers as any)[key] as (props: RendererProps<K>) => HTMLElement;
+  return renderers[key] as (props: RendererProps<K>) => HTMLElement;
+}
+
+function mapInputToRenderer(input?: ColumnDef['input']): RendererKey {
+  if (!input) return 'input';
+  if (input === 'textarea') return 'textarea';
+  if (input === 'select') return 'select';
+  return 'input';
 }
 
 type TableStructure = {
@@ -237,7 +245,7 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
     editBtn.dataset.pk = JSON.stringify(pkFields.map((field) => String(record[field as keyof TableRecordMap[K]] ?? '')));
     editBtn.addEventListener('click', (e) => {
       const pkValues = JSON.parse((e.currentTarget as HTMLElement).dataset.pk || '[]');
-      (window as any).editRecord(tableKey, ...pkValues);
+      window.editRecord(tableKey, ...pkValues);
     });
 
     const deleteBtn = document.createElement('button');
@@ -247,7 +255,7 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
     deleteBtn.dataset.pk = editBtn.dataset.pk;
     deleteBtn.addEventListener('click', (e) => {
       const pkValues = JSON.parse((e.currentTarget as HTMLElement).dataset.pk || '[]');
-      (window as any).deleteRecord(tableKey, ...pkValues);
+      window.deleteRecord(tableKey, ...pkValues);
     });
 
     actionsTd.appendChild(editBtn);
@@ -281,7 +289,7 @@ function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof Table
   labelEl.htmlFor = id;
   labelEl.textContent = labelText;
   wrapper.appendChild(labelEl);
-  const rendererKey = ((column.input && (column.input as string) in renderers) ? column.input : 'input') as RendererKey;
+  const rendererKey = mapInputToRenderer(column.input);
   const renderer = getRenderer<K>(rendererKey);
   const inputEl = renderer({ id, fieldName, column, record, isEdit });
   wrapper.appendChild(inputEl);
@@ -382,10 +390,18 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
   });
 }
 
-(window as any).hideAnyForm = hideAnyForm;
+declare global {
+  interface Window {
+    hideAnyForm: () => void;
+    editRecord: <K extends TableKey>(tableKey: K, ...pkValues: string[]) => Promise<void>;
+    deleteRecord: <K extends TableKey>(tableKey: K, ...pkValues: string[]) => Promise<void>;
+  }
+}
 
 // Global functions for onclick
-(window as any).editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
+window.hideAnyForm = hideAnyForm;
+
+window.editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
   try {
     const response = await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`);
     const record = (await response.json()) as TableRecordMap[K];
@@ -394,8 +410,7 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
     console.error(`Error loading ${tableKey} for edit:`, error);
   }
 };
-
-(window as any).deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
+window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
   const tableConfig = structure.tables[tableKey];
   if (confirm(`¿Está seguro de que desea eliminar este ${tableConfig.uiName.toLowerCase()}? / Are you sure you want to delete this ${tableConfig.uiName.toLowerCase()}?`)) {
     try {
@@ -409,3 +424,5 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
 
 // Initialize
 showSection('students');
+
+export {};
