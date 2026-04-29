@@ -1,8 +1,23 @@
+# Ignore dependencies and build artifacts
 node_modules
+**/node_modules
 npm-debug.log
 dist
+build
+out
+
+# Git and editor files
 .git
 .gitignore
-.vscode
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local env files
+.env
 .env.local
 .env.*.local
+
+# Logs
+*.log
+
