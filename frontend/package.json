@@ -2,8 +2,9 @@
   "name": "faculty-management-frontend",
   "version": "1.0.0",
   "description": "Frontend for Faculty Student Management System",
+  "type": "module",
   "scripts": {
-    "build": "tsc && node ./copy-static.js",
+    "build": "tsc && node ./copy-static.cjs",
     "start": "http-server dist -p 8080",
     "dev": "tsc --watch & http-server src -p 8080"
   },
