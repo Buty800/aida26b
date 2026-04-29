@@ -212,15 +212,18 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
   thead.innerHTML = '';
   tbody.innerHTML = '';
 
-  thead.innerHTML = `
-    <tr>
-      ${Object.values(tableStructure.columns)
-        .map((column) => `<th>${column.label}</th>`)
-        .join('')}
-      <th>Acciones / Actions</th>
-    </tr>
-  `;
+  const headerRow = document.createElement('tr');
+  Object.values(tableStructure.columns).forEach((column) => {
+    const th = document.createElement('th');
+    th.textContent = column.label;
+    headerRow.appendChild(th);
+  });
 
+  const actionsHeader = document.createElement('th');
+  actionsHeader.textContent = 'Acciones / Actions';
+  headerRow.appendChild(actionsHeader);
+  thead.appendChild(headerRow);
+  
   records.forEach((record) => {
     const { pk } = tableStructure;
     const pkFields = Array.isArray(pk) ? pk : [pk];
