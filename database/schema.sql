@@ -2,7 +2,7 @@
 -- Code and comments in English, documentation in Spanish
 
 CREATE USER aida26_owner;
-CREATE USER aida26_admin LOGIN 'CambiaEsta!';
+CREATE USER aida26_user WITH PASSWORD 'CambiaEsta!';
 
 -- Create database
 CREATE DATABASE faculty_management;

@@ -14,532 +14,418 @@ type TypeMap = {
 
 type MyTypeNames = keyof TypeMap;
 
-
 type ColumnDef = {
   type: MyTypeNames;
   label?: string;
+  input?: 'text' | 'email' | 'date' | 'number' | 'textarea' | 'select';
+  options?: Array<{ value: string; label: string }>;
+  required?: boolean;
+  editable?: boolean;
+  readonlyOnEdit?: boolean;
+  nullable?: boolean;
+}
+
+
+type RendererProps<K extends TableKey> = {
+  id: string;
+  fieldName: keyof TableRecordMap[K] & string;
+  column: ColumnDef;
+  record?: Partial<TableRecordMap[K]>;
+  isEdit?: boolean;
+};
+type RendererFunc = <K extends TableKey>(props: RendererProps<K>) => HTMLElement;
+
+const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
+  input<K extends TableKey>({ id, fieldName, column, record, isEdit }: RendererProps<K>) {
+    const inp = document.createElement('input');
+    inp.id = id;
+    inp.type = column.input ?? (column.type === 'number' ? 'number' : 'text');
+    if (column.required) inp.required = true;
+    if (isEdit && column.readonlyOnEdit) inp.readOnly = true;
+    (inp as HTMLInputElement).value = String(record?.[fieldName] ?? '');
+    return inp;
+  },
+  textarea<K extends TableKey>({ id, fieldName, column, record }: RendererProps<K>) {
+    const ta = document.createElement('textarea');
+    ta.id = id;
+    if (column.required) ta.required = true;
+    (ta as HTMLTextAreaElement).value = String(record?.[fieldName] ?? '');
+    return ta;
+  },
+  select<K extends TableKey>({ id, fieldName, column, record }: RendererProps<K>) {
+    const sel = document.createElement('select');
+    sel.id = id;
+    if (column.required) sel.required = true;
+    (column.options || []).forEach((opt: { value: string; label: string }) => {
+      const o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      if (String(record?.[fieldName] ?? '') === opt.value) o.selected = true;
+      sel.appendChild(o);
+    });
+    return sel;
+  }
+};
+
+type RendererKey = keyof typeof renderers;
+
+function getRenderer<K extends TableKey>(key: RendererKey) {
+  return renderers[key] as (props: RendererProps<K>) => HTMLElement;
+}
+
+function mapInputToRenderer(input?: ColumnDef['input']): RendererKey {
+  if (!input) return 'input';
+  if (input === 'textarea') return 'textarea';
+  if (input === 'select') return 'select';
+  return 'input';
 }
 
 type TableStructure = {
   columns: Record<string, ColumnDef>
-  pk: string
+  pk: string | string[]
   uiName: string
-  endpoint? : string
+  title?: string
+  addButtonLabel?: string
 }
 
 type InferType<FieldDefs extends Record<string, ColumnDef>> = {
   [K in keyof FieldDefs]: TypeMap[FieldDefs[K]['type']]
 }
-
-function defineTable<C extends Record<string, ColumnDef>>(def: {
-  columns: C;
-  pk: string;
-  uiName: string;
-  endpoint?: string;
-}) { return def; }
-
 const structure = {
   tables: {
     students: {
       columns:{
-        numero_libreta   :{type: 'string', label: "Número de Libreta / Student ID:"},
-        dni              :{type: 'string'},
-        first_name       :{type: 'string'},
-        last_name        :{type: 'string'},
-        email            :{type: 'string'},
-        enrollment_date  :{type: 'string'},
-        status           :{type: 'string'},
+        numero_libreta   :{type: 'string', label: "Número de Libreta / Student ID:", required: true, readonlyOnEdit: true},
+        dni              :{type: 'string', label: 'DNI / ID Number:', required: true},
+        first_name       :{type: 'string', label: 'Nombre / First Name:', required: true},
+        last_name        :{type: 'string', label: 'Apellido / Last Name:', required: true},
+        email            :{type: 'string', label: 'Email:', input: 'email'},
+        enrollment_date  :{type: 'string', label: 'Fecha de Inscripción / Enrollment Date:', input: 'date'},
+        status           :{type: 'string', label: 'Estado / Status:', input: 'select', options: [
+          { value: 'active', label: 'Activo / Active' },
+          { value: 'graduated', label: 'Graduado / Graduated' },
+          { value: 'interrupted', label: 'Interrumpido / Interrupted' },
+        ]},
       },
       pk: 'numero_libreta',
-      uiName: 'Student'
+      uiName: 'Student',
+      title: 'Alumnos / Students',
+      addButtonLabel: 'Agregar Alumno / Add Student'
     } satisfies TableStructure,
-    subject: {
+    subjects: {
       columns:{
-        cod_mat     :{type: 'string'},
-        name        :{type: 'string'},
-        description :{type: 'string'},
-        credits     :{type: 'string'},
-        department  :{type: 'string'},
+        cod_mat     :{type: 'string', label: 'Código / Code:', required: true, readonlyOnEdit: true},
+        name        :{type: 'string', label: 'Nombre / Name:', required: true},
+        description :{type: 'string', label: 'Descripción / Description:', input: 'textarea'},
+        credits     :{type: 'number', label: 'Créditos / Credits:', input: 'number', nullable: false},
+        department  :{type: 'string', label: 'Departamento / Department:'},
       },
       pk: 'cod_mat',
-      uiName: 'Subject'
+      uiName: 'Subject',
+      title: 'Materias / Subjects',
+      addButtonLabel: 'Agregar Materia / Add Subject'
     } satisfies TableStructure,
     enrollments: {
-        pk: 'numero_libreta', 
+        pk: ['numero_libreta', 'cod_mat'],
         uiName: 'Enrollment',
         columns: {
-          numero_libreta: { type: 'string' },
-          student_name: { type: 'string' },
-          cod_mat: { type: 'string' },
-          subject_name: { type: 'string' },
-          enrollment_date: { type: 'string' },
-          grade: { type: 'string' },
-          status: { type: 'string' }
+          numero_libreta: { type: 'string', label: 'Número de Libreta / Student ID:', required: true, readonlyOnEdit: true },
+          student_name: { type: 'string', label: 'Nombre del Alumno / Student Name:', editable: false },
+          cod_mat: { type: 'string', label: 'Código de Materia / Subject Code:', required: true, readonlyOnEdit: true },
+          subject_name: { type: 'string', label: 'Nombre de Materia / Subject Name:', editable: false },
+          enrollment_date: { type: 'string', label: 'Fecha de Inscripción / Enrollment Date:', input: 'date', required: true },
+          grade: { type: 'number', label: 'Nota / Grade:', input: 'number', nullable: true },
+          status: { type: 'string', label: 'Estado / Status:', input: 'select', options: [
+            { value: 'enrolled', label: 'Inscrito / Enrolled' },
+            { value: 'completed', label: 'Completado / Completed' },
+            { value: 'failed', label: 'Fallido / Failed' },
+          ] }
         }
-    } satisfies TableStructure
+      ,
+        title: 'Inscripciones / Enrollments',
+        addButtonLabel: 'Agregar Inscripción / Add Enrollment'
+      } satisfies TableStructure
   }
 }
 
 
 
 
-type Student = InferType<typeof structure.tables.students.columns>;
+type TableKey = keyof typeof structure.tables;
 
-// Type definitions
-interface StudentAnterior {
-  numero_libreta: string;
-  dni: string;
-  first_name: string;
-  last_name: string;
-  email: string;
-  enrollment_date: string;
-  status: string;
+type TableRecordMap = {
+  [T in keyof typeof structure.tables]: InferType<(typeof structure.tables)[T]['columns']>
+};
+
+// DOM elements (derive nav buttons from `structure.tables` keys to avoid duplication)
+const viewTitle = document.getElementById('view-title') as HTMLElement;
+const addRecordBtn = document.getElementById('add-record-btn') as HTMLButtonElement;
+const formContainer = document.getElementById('record-form') as HTMLElement;
+const sharedTable = document.getElementById('records-table') as HTMLTableElement;
+
+const tableKeys = Object.keys(structure.tables) as TableKey[];
+const navContainer = document.getElementById('table-nav') as HTMLElement | null;
+if (!navContainer) throw new Error('Missing #table-nav element in DOM');
+
+const tableNavButtons = {} as Record<TableKey, HTMLButtonElement>;
+for (const key of tableKeys) {
+  const cfg = structure.tables[key];
+  const btn = document.createElement('button');
+  btn.id = `${key}-btn`;
+  btn.textContent = cfg.title ?? cfg.uiName;
+  navContainer.appendChild(btn);
+  tableNavButtons[key] = btn;
+  btn.addEventListener('click', () => showSection(key));
 }
 
-interface Subject {
-  cod_mat: string;
-  name: string;
-  description: string;
-  credits: number;
-  department: string;
-}
+let activeTableKey: TableKey = tableKeys[0] as TableKey;
 
-interface Enrollment {
-  numero_libreta: string;
-  cod_mat: string;
-  enrollment_date: string;
-  grade: number;
-  status: string;
-  first_name?: string;
-  last_name?: string;
-  subject_name?: string;
-}
+function showSection(section: TableKey) {
+  activeTableKey = section;
 
-// DOM elements
-const studentsBtn = document.getElementById('students-btn') as HTMLButtonElement;
-const subjectsBtn = document.getElementById('subjects-btn') as HTMLButtonElement;
-const enrollmentsBtn = document.getElementById('enrollments-btn') as HTMLButtonElement;
+  Object.entries(tableNavButtons).forEach(([key, button]) => {
+    button.classList.toggle('active', key === section);
+  });
 
-const studentsSection = document.getElementById('students-section') as HTMLElement;
-const subjectsSection = document.getElementById('subjects-section') as HTMLElement;
-const enrollmentsSection = document.getElementById('enrollments-section') as HTMLElement;
-
-const addStudentBtn = document.getElementById('add-student-btn') as HTMLButtonElement;
-const addSubjectBtn = document.getElementById('add-subject-btn') as HTMLButtonElement;
-const addEnrollmentBtn = document.getElementById('add-enrollment-btn') as HTMLButtonElement;
-
-const studentsForm = document.getElementById('students-form') as HTMLElement;
-const subjectsForm = document.getElementById('subjects-form') as HTMLElement;
-const enrollmentsForm = document.getElementById('enrollments-form') as HTMLElement;
-
-const studentsTable = document.getElementById('students-table') as HTMLTableElement;
-const subjectsTable = document.getElementById('subjects-table') as HTMLTableElement;
-const enrollmentsTable = document.getElementById('enrollments-table') as HTMLTableElement;
-
-// Navigation
-studentsBtn.addEventListener('click', () => showSection('students'));
-subjectsBtn.addEventListener('click', () => showSection('subjects'));
-enrollmentsBtn.addEventListener('click', () => showSection('enrollments'));
-
-function showSection(section: string) {
-  // Hide all sections
-  studentsSection.classList.remove('active');
-  subjectsSection.classList.remove('active');
-  enrollmentsSection.classList.remove('active');
-
-  // Remove active class from buttons
-  studentsBtn.classList.remove('active');
-  subjectsBtn.classList.remove('active');
-  enrollmentsBtn.classList.remove('active');
-
-  // Show selected section
-  switch (section) {
-    case 'students':
-      studentsSection.classList.add('active');
-      studentsBtn.classList.add('active');
-      loadStudents();
-      break;
-    case 'subjects':
-      subjectsSection.classList.add('active');
-      subjectsBtn.classList.add('active');
-      loadSubjects();
-      break;
-    case 'enrollments':
-      enrollmentsSection.classList.add('active');
-      enrollmentsBtn.classList.add('active');
-      loadEnrollments();
-      break;
-  }
+  const tableConfig = structure.tables[section];
+  viewTitle.textContent = tableConfig.title;
+  addRecordBtn.textContent = tableConfig.addButtonLabel || `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`;
+  hideAnyForm();
+  loadTableData(section);
 }
 
 //Load 
-async function loadTableData(tableElement: HTMLTableElement, structureKey: keyof typeof structure.tables) {
-  const tableConfig = structure.tables[structureKey] as any;
-  const endpoint = tableConfig.endpoint || structureKey;
+async function loadTableData<K extends TableKey>(tableKey: K) {    
   try {
-    const response = await fetch(`${API_BASE}/${endpoint}`);
-    let data = await response.json();
-    renderAnyTable(tableElement, tableConfig, data);
+    const response = await fetch(`${API_BASE}/${tableKey}`);
+    const data = (await response.json()) as TableRecordMap[K][];
+    renderAnyTable(tableKey, data);
   } catch (error) {
-    console.error(`Error loading ${endpoint}:`, error);
-  }
-}
-const loadStudents = () => loadTableData(studentsTable, 'students');
-const loadSubjects = () => loadTableData(subjectsTable, 'subject');
-
-async function loadEnrollments() {
-  try {
-    const response = await fetch(`${API_BASE}/enrollments`);
-    const enrollments: Enrollment[] = await response.json();
-    renderEnrollmentsTable(enrollments);
-  } catch (error) {
-    console.error('Error loading enrollments:', error);
+    console.error(`Error loading ${tableKey}:`, error);
   }
 }
 
-function renderAnyTable(tableElement: HTMLTableElement, tableStructure: TableStructure, records: Record<string, any>[]){
-  const tbody = tableElement.querySelector('tbody')!;
+function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap[K][]) {
+  const thead = sharedTable.querySelector('thead')!;
+  const tbody = sharedTable.querySelector('tbody')!;
+  const tableStructure = structure.tables[tableKey];
+  thead.innerHTML = '';
   tbody.innerHTML = '';
 
-  records.forEach(record => {
-    const {pk, uiName} = tableStructure;
-    const pkValue = encodeURIComponent(record[pk]);
+  const headerRow = document.createElement('tr');
+  Object.values(tableStructure.columns).forEach((column) => {
+    const th = document.createElement('th');
+    th.textContent = column.label;
+    headerRow.appendChild(th);
+  });
+
+  const actionsHeader = document.createElement('th');
+  actionsHeader.textContent = 'Acciones / Actions';
+  headerRow.appendChild(actionsHeader);
+  thead.appendChild(headerRow);
+  
+  records.forEach((record) => {
+    const { pk } = tableStructure;
+    const pkFields = Array.isArray(pk) ? pk : [pk];
     const row = document.createElement('tr');
-    row.innerHTML = 
-      Object.entries(tableStructure.columns).map(([name]) => `<td>${record[name] || ''}</td>`).join('')
-      +
-    `
-      <td class="actions">
-        <button class="edit-btn" onclick="edit${uiName}('${pkValue}')">Editar / Edit</button>
-        <button class="delete-btn" onclick="delete${uiName}('${pkValue}')">Eliminar / Delete</button>
-      </td>
-    `;
+    const columnNames = Object.keys(tableStructure.columns) as Array<keyof TableRecordMap[K] & string>;
+
+    // create data cells
+    columnNames.forEach((name) => {
+      const td = document.createElement('td');
+      td.textContent = String(record[name] ?? '');
+      row.appendChild(td);
+    });
+
+    // actions cell with event listeners (avoid inline onclick/double-encoding)
+    const actionsTd = document.createElement('td');
+    actionsTd.className = 'actions';
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'edit-btn';
+    editBtn.textContent = 'Editar / Edit';
+    editBtn.dataset.table = String(tableKey);
+    editBtn.dataset.pk = JSON.stringify(pkFields.map((field) => String(record[field as keyof TableRecordMap[K]] ?? '')));
+    editBtn.addEventListener('click', (e) => {
+      const pkValues = JSON.parse((e.currentTarget as HTMLElement).dataset.pk || '[]');
+      window.editRecord(tableKey, ...pkValues);
+    });
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'delete-btn';
+    deleteBtn.textContent = 'Eliminar / Delete';
+    deleteBtn.dataset.table = String(tableKey);
+    deleteBtn.dataset.pk = editBtn.dataset.pk;
+    deleteBtn.addEventListener('click', (e) => {
+      const pkValues = JSON.parse((e.currentTarget as HTMLElement).dataset.pk || '[]');
+      window.deleteRecord(tableKey, ...pkValues);
+    });
+
+    actionsTd.appendChild(editBtn);
+    actionsTd.appendChild(deleteBtn);
+    row.appendChild(actionsTd);
+
     tbody.appendChild(row);
   });
 }
 
-// Render table functions
-function renderStudentsTable(students: Student[]) {
-  console.log(`viendo los estudiantes que arrancan con ${students[0].first_name}`)
-  return renderAnyTable(studentsTable, structure.tables.students, students);
+
+addRecordBtn.addEventListener('click', () => showAnyForm(activeTableKey));
+
+function getPkFields(tableKey: TableKey): string[] {
+  const tableConfig = structure.tables[tableKey];
+  return Array.isArray(tableConfig.pk) ? tableConfig.pk : [tableConfig.pk];
 }
 
-function renderSubjectsTable(subjects: Subject[]) {
-  return renderAnyTable(subjectsTable, structure.tables.subject, subjects);
+function getFieldElementId(tableKey: TableKey, fieldName: string): string {
+  return `${tableKey}-${fieldName}`;
 }
 
-function renderEnrollmentsTable(enrollments: Enrollment[]) {
-  return renderAnyTable(enrollmentsTable, structure.tables.enrollments, enrollments.map(e => ({
-    numero_libreta: e.numero_libreta,
-    student_name: `${e.first_name ?? ''} ${e.last_name ?? ''}`,
-    cod_mat: e.cod_mat,
-    subject_name: e.subject_name,
-    enrollment_date: e.enrollment_date,
-    grade: e.grade,
-    status: e.status
-  }))) 
+
+function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof TableRecordMap[K] & string, column: ColumnDef, record?: Partial<TableRecordMap[K]>, isEdit = false): HTMLElement {
+  const id = getFieldElementId(tableKey, fieldName);
+  const labelText = column.label ?? '';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'form-group';
+
+  const labelEl = document.createElement('label');
+  labelEl.htmlFor = id;
+  labelEl.textContent = labelText;
+  wrapper.appendChild(labelEl);
+  const rendererKey = mapInputToRenderer(column.input);
+  const renderer = getRenderer<K>(rendererKey);
+  const inputEl = renderer({ id, fieldName, column, record, isEdit });
+  wrapper.appendChild(inputEl);
+  return wrapper;
 }
 
-// Form functions
-addStudentBtn.addEventListener('click', () => showStudentForm());
-addSubjectBtn.addEventListener('click', () => showSubjectForm());
-addEnrollmentBtn.addEventListener('click', () => showEnrollmentForm());
+function collectFormData<K extends TableKey>(tableKey: K): Partial<TableRecordMap[K]> {
+  const tableConfig = structure.tables[tableKey];
+  const payload: Partial<TableRecordMap[K]> = {};
 
-function showStudentForm(student?: Student) {
-  const isEdit = !!student;
-  studentsForm.innerHTML = `
-    <form id="student-form">
-      <h3>${isEdit ? 'Editar Alumno / Edit Student' : 'Agregar Alumno / Add Student'}</h3>
-      <div class="form-group">
-        <label for="numero_libreta">Número de Libreta / Student ID:</label>
-        <input type="text" id="numero_libreta" value="${student?.numero_libreta || ''}" ${isEdit ? 'readonly' : ''} required>
-      </div>
-      <div class="form-group">
-        <label for="dni">DNI / ID Number:</label>
-        <input type="text" id="dni" value="${student?.dni || ''}" required>
-      </div>
-      <div class="form-group">
-        <label for="first_name">Nombre / First Name:</label>
-        <input type="text" id="first_name" value="${student?.first_name || ''}" required>
-      </div>
-      <div class="form-group">
-        <label for="last_name">Apellido / Last Name:</label>
-        <input type="text" id="last_name" value="${student?.last_name || ''}" required>
-      </div>
-      <div class="form-group">
-        <label for="email">Email:</label>
-        <input type="email" id="email" value="${student?.email || ''}">
-      </div>
-      <div class="form-group">
-        <label for="enrollment_date">Fecha de Inscripción / Enrollment Date:</label>
-        <input type="date" id="enrollment_date" value="${student?.enrollment_date || ''}">
-      </div>
-      <div class="form-group">
-        <label for="status">Estado / Status:</label>
-        <select id="status">
-          <option value="active" ${student?.status === 'active' ? 'selected' : ''}>Activo / Active</option>
-          <option value="graduated" ${student?.status === 'graduated' ? 'selected' : ''}>Graduado / Graduated</option>
-          <option value="interrupted" ${student?.status === 'interrupted' ? 'selected' : ''}>Interrumpido / Interrupted</option>
-        </select>
-      </div>
-      <div class="form-actions">
-        <button type="submit">${isEdit ? 'Actualizar / Update' : 'Agregar / Add'}</button>
-        <button type="button" class="cancel-btn" onclick="hideStudentForm()">Cancelar / Cancel</button>
-      </div>
-    </form>
-  `;
+  Object.entries(tableConfig.columns)
+    .filter(([, column]) => column.editable !== false)
+    .forEach(([fieldName, column]) => {
+      const id = getFieldElementId(tableKey, fieldName);
+      const element = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
+      const rawValue = element?.value ?? '';
 
-  studentsForm.style.display = 'block';
+      if (column.type === 'number') {
+        if (rawValue === '') {
+          payload[fieldName as keyof TableRecordMap[K]] = (column.nullable ? null : 0) as TableRecordMap[K][keyof TableRecordMap[K]];
+        } else {
+          payload[fieldName as keyof TableRecordMap[K]] = Number(rawValue) as TableRecordMap[K][keyof TableRecordMap[K]];
+        }
+        return;
+      }
 
-  const form = document.getElementById('student-form') as HTMLFormElement;
+      payload[fieldName as keyof TableRecordMap[K]] = rawValue as TableRecordMap[K][keyof TableRecordMap[K]];
+    });
+
+  return payload;
+}
+
+function getRecordPath(recordValues: string[]): string {
+  return `/${recordValues.map((value) => encodeURIComponent(value)).join('/')}`;
+}
+
+function hideAnyForm(): void {
+  formContainer.style.display = 'none';
+  formContainer.innerHTML = '';
+}
+
+async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<TableRecordMap[K]>): Promise<void> {
+  const tableConfig = structure.tables[tableKey];
+  const isEdit = !!record;
+  const formId = `${tableKey}-form`;
+
+  const fields = Object.entries(tableConfig.columns)
+    .filter(([, column]) => column.editable !== false)
+    .map(([fieldName, column]) => renderFormField(tableKey, fieldName as keyof TableRecordMap[K] & string, column, record, isEdit));
+
+  // build form DOM
+  formContainer.innerHTML = '';
+  const form = document.createElement('form');
+  form.id = formId;
+  const h3 = document.createElement('h3');
+  h3.textContent = isEdit ? `Editar ${tableConfig.uiName} / Edit ${tableConfig.uiName}` : `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`;
+  form.appendChild(h3);
+  fields.forEach((f) => form.appendChild(f));
+
+  const actionsDiv = document.createElement('div');
+  actionsDiv.className = 'form-actions';
+  const submitBtn = document.createElement('button');
+  submitBtn.type = 'submit';
+  submitBtn.textContent = isEdit ? 'Actualizar / Update' : 'Agregar / Add';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.className = 'cancel-btn';
+  cancelBtn.textContent = 'Cancelar / Cancel';
+  cancelBtn.addEventListener('click', hideAnyForm);
+  actionsDiv.appendChild(submitBtn);
+  actionsDiv.appendChild(cancelBtn);
+  form.appendChild(actionsDiv);
+
+  formContainer.appendChild(form);
+  formContainer.style.display = 'block';
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const formData = new FormData(form);
-    const studentData = {
-      numero_libreta: (document.getElementById('numero_libreta') as HTMLInputElement).value,
-      dni: (document.getElementById('dni') as HTMLInputElement).value,
-      first_name: (document.getElementById('first_name') as HTMLInputElement).value,
-      last_name: (document.getElementById('last_name') as HTMLInputElement).value,
-      email: (document.getElementById('email') as HTMLInputElement).value,
-      enrollment_date: (document.getElementById('enrollment_date') as HTMLInputElement).value,
-      status: (document.getElementById('status') as HTMLSelectElement).value,
-    };
+    const payload = collectFormData(tableKey);
+
+    const pkPath = isEdit
+        ? `/${getPkFields(tableKey)
+          .map((fieldName) => encodeURIComponent(String((payload as Record<string, unknown>)[fieldName] ?? (record as Record<string, unknown> | undefined)?.[fieldName] ?? '')))
+          .join('/')}`
+      : '';
 
     try {
-      if (isEdit) {
-        await fetch(`${API_BASE}/students/${studentData.numero_libreta}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(studentData),
-        });
-      } else {
-        await fetch(`${API_BASE}/students`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(studentData),
-        });
-      }
-      hideStudentForm();
-      loadStudents();
+      await fetch(`${API_BASE}/${tableKey}${pkPath}`, {
+        method: isEdit ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      hideAnyForm();
+      loadTableData(tableKey);
     } catch (error) {
-      console.error('Error saving student:', error);
+      console.error(`Error saving ${tableConfig.uiName.toLowerCase()}:`, error);
     }
   });
 }
 
-function hideStudentForm() {
-  studentsForm.style.display = 'none';
-}
-
-function showSubjectForm(subject?: Subject) {
-  const isEdit = !!subject;
-  subjectsForm.innerHTML = `
-    <form id="subject-form">
-      <h3>${isEdit ? 'Editar Materia / Edit Subject' : 'Agregar Materia / Add Subject'}</h3>
-      <div class="form-group">
-        <label for="cod_mat">Código / Code:</label>
-        <input type="text" id="cod_mat" value="${subject?.cod_mat || ''}" ${isEdit ? 'readonly' : ''} required>
-      </div>
-      <div class="form-group">
-        <label for="name">Nombre / Name:</label>
-        <input type="text" id="name" value="${subject?.name || ''}" required>
-      </div>
-      <div class="form-group">
-        <label for="description">Descripción / Description:</label>
-        <textarea id="description">${subject?.description || ''}</textarea>
-      </div>
-      <div class="form-group">
-        <label for="credits">Créditos / Credits:</label>
-        <input type="number" id="credits" value="${subject?.credits || ''}">
-      </div>
-      <div class="form-group">
-        <label for="department">Departamento / Department:</label>
-        <input type="text" id="department" value="${subject?.department || ''}">
-      </div>
-      <div class="form-actions">
-        <button type="submit">${isEdit ? 'Actualizar / Update' : 'Agregar / Add'}</button>
-        <button type="button" class="cancel-btn" onclick="hideSubjectForm()">Cancelar / Cancel</button>
-      </div>
-    </form>
-  `;
-
-  subjectsForm.style.display = 'block';
-
-  const form = document.getElementById('subject-form') as HTMLFormElement;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const subjectData = {
-      cod_mat: (document.getElementById('cod_mat') as HTMLInputElement).value,
-      name: (document.getElementById('name') as HTMLInputElement).value,
-      description: (document.getElementById('description') as HTMLTextAreaElement).value,
-      credits: parseInt((document.getElementById('credits') as HTMLInputElement).value) || 0,
-      department: (document.getElementById('department') as HTMLInputElement).value,
-    };
-
-    try {
-      if (isEdit) {
-        await fetch(`${API_BASE}/subjects/${subjectData.cod_mat}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(subjectData),
-        });
-      } else {
-        await fetch(`${API_BASE}/subjects`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(subjectData),
-        });
-      }
-      hideSubjectForm();
-      loadSubjects();
-    } catch (error) {
-      console.error('Error saving subject:', error);
-    }
-  });
-}
-
-function hideSubjectForm() {
-  subjectsForm.style.display = 'none';
-}
-
-function showEnrollmentForm(enrollment?: Enrollment) {
-  const isEdit = !!enrollment;
-  enrollmentsForm.innerHTML = `
-    <form id="enrollment-form">
-      <h3>${isEdit ? 'Editar Inscripción / Edit Enrollment' : 'Agregar Inscripción / Add Enrollment'}</h3>
-      <div class="form-group">
-        <label for="numero_libreta">Número de Libreta / Student ID:</label>
-        <input type="text" id="numero_libreta" value="${enrollment?.numero_libreta || ''}" ${isEdit ? 'readonly' : ''} required>
-      </div>
-      <div class="form-group">
-        <label for="cod_mat">Código de Materia / Subject Code:</label>
-        <input type="text" id="cod_mat" value="${enrollment?.cod_mat || ''}" ${isEdit ? 'readonly' : ''} required>
-      </div>
-      <div class="form-group">
-        <label for="enrollment_date">Fecha de Inscripción / Enrollment Date:</label>
-        <input type="date" id="enrollment_date" value="${enrollment?.enrollment_date || ''}" required>
-      </div>
-      <div class="form-group">
-        <label for="grade">Nota / Grade:</label>
-        <input type="number" id="grade" step="0.01" value="${enrollment?.grade || ''}">
-      </div>
-      <div class="form-group">
-        <label for="status">Estado / Status:</label>
-        <select id="status">
-          <option value="enrolled" ${enrollment?.status === 'enrolled' ? 'selected' : ''}>Inscrito / Enrolled</option>
-          <option value="completed" ${enrollment?.status === 'completed' ? 'selected' : ''}>Completado / Completed</option>
-          <option value="failed" ${enrollment?.status === 'failed' ? 'selected' : ''}>Fallido / Failed</option>
-        </select>
-      </div>
-      <div class="form-actions">
-        <button type="submit">${isEdit ? 'Actualizar / Update' : 'Agregar / Add'}</button>
-        <button type="button" class="cancel-btn" onclick="hideEnrollmentForm()">Cancelar / Cancel</button>
-      </div>
-    </form>
-  `;
-
-  enrollmentsForm.style.display = 'block';
-
-  const form = document.getElementById('enrollment-form') as HTMLFormElement;
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const enrollmentData = {
-      numero_libreta: (document.getElementById('numero_libreta') as HTMLInputElement).value,
-      cod_mat: (document.getElementById('cod_mat') as HTMLInputElement).value,
-      enrollment_date: (document.getElementById('enrollment_date') as HTMLInputElement).value,
-      grade: parseFloat((document.getElementById('grade') as HTMLInputElement).value) || null,
-      status: (document.getElementById('status') as HTMLSelectElement).value,
-    };
-
-    try {
-      if (isEdit) {
-        await fetch(`${API_BASE}/enrollments/${enrollmentData.numero_libreta}/${enrollmentData.cod_mat}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(enrollmentData),
-        });
-      } else {
-        await fetch(`${API_BASE}/enrollments`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(enrollmentData),
-        });
-      }
-      hideEnrollmentForm();
-      loadEnrollments();
-    } catch (error) {
-      console.error('Error saving enrollment:', error);
-    }
-  });
-}
-
-function hideEnrollmentForm() {
-  enrollmentsForm.style.display = 'none';
+declare global {
+  interface Window {
+    hideAnyForm: () => void;
+    editRecord: <K extends TableKey>(tableKey: K, ...pkValues: string[]) => Promise<void>;
+    deleteRecord: <K extends TableKey>(tableKey: K, ...pkValues: string[]) => Promise<void>;
+  }
 }
 
 // Global functions for onclick
-(window as any).editStudent = async (numero_libreta: string) => {
+window.hideAnyForm = hideAnyForm;
+
+window.editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
   try {
-    const response = await fetch(`${API_BASE}/students/${numero_libreta}`);
-    const student: Student = await response.json();
-    showStudentForm(student);
+    const response = await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`);
+    const record = (await response.json()) as TableRecordMap[K];
+    showAnyForm(tableKey, record);
   } catch (error) {
-    console.error('Error loading student for edit:', error);
+    console.error(`Error loading ${tableKey} for edit:`, error);
   }
 };
-
-(window as any).deleteStudent = async (numero_libreta: string) => {
-  if (confirm('¿Está seguro de que desea eliminar este alumno? / Are you sure you want to delete this student?')) {
+window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
+  const tableConfig = structure.tables[tableKey];
+  if (confirm(`¿Está seguro de que desea eliminar este ${tableConfig.uiName.toLowerCase()}? / Are you sure you want to delete this ${tableConfig.uiName.toLowerCase()}?`)) {
     try {
-      await fetch(`${API_BASE}/students/${numero_libreta}`, { method: 'DELETE' });
-      loadStudents();
+      await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`, { method: 'DELETE' });
+      loadTableData(tableKey);
     } catch (error) {
-      console.error('Error deleting student:', error);
-    }
-  }
-};
-
-(window as any).editSubject = async (cod_mat: string) => {
-  try {
-    const response = await fetch(`${API_BASE}/subjects/${cod_mat}`);
-    const subject: Subject = await response.json();
-    showSubjectForm(subject);
-  } catch (error) {
-    console.error('Error loading subject for edit:', error);
-  }
-};
-
-(window as any).deleteSubject = async (cod_mat: string) => {
-  if (confirm('¿Está seguro de que desea eliminar esta materia? / Are you sure you want to delete this subject?')) {
-    try {
-      await fetch(`${API_BASE}/subjects/${cod_mat}`, { method: 'DELETE' });
-      loadSubjects();
-    } catch (error) {
-      console.error('Error deleting subject:', error);
-    }
-  }
-};
-
-(window as any).editEnrollment = async (numero_libreta: string, cod_mat: string) => {
-  try {
-    const response = await fetch(`${API_BASE}/enrollments/${numero_libreta}/${cod_mat}`);
-    const enrollment: Enrollment = await response.json();
-    showEnrollmentForm(enrollment);
-  } catch (error) {
-    console.error('Error loading enrollment for edit:', error);
-  }
-};
-
-(window as any).deleteEnrollment = async (numero_libreta: string, cod_mat: string) => {
-  if (confirm('¿Está seguro de que desea eliminar esta inscripción? / Are you sure you want to delete this enrollment?')) {
-    try {
-      await fetch(`${API_BASE}/enrollments/${numero_libreta}/${cod_mat}`, { method: 'DELETE' });
-      loadEnrollments();
-    } catch (error) {
-      console.error('Error deleting enrollment:', error);
+      console.error(`Error deleting ${tableKey}:`, error);
     }
   }
 };
 
 // Initialize
-showSection('students');
+showSection(activeTableKey);
+
+export {};
