@@ -3,8 +3,6 @@
 
 const API_BASE = '/api';
 
-
-
 type TypeMap = {
   string: string;
   number: number;
@@ -14,17 +12,23 @@ type TypeMap = {
 
 type MyTypeNames = keyof TypeMap;
 
+type ForeignKeyDef = {
+  table: string;
+  valueField: string;
+  labelField: string;
+};
+
 type ColumnDef = {
   type: MyTypeNames;
   label?: string;
   input?: 'text' | 'email' | 'date' | 'number' | 'textarea' | 'select';
-  options?: Array<{ value: string; label: string }>;
+  options?: Array<{ value: string; label: string }> 
   required?: boolean;
   editable?: boolean;
   readonlyOnEdit?: boolean;
   nullable?: boolean;
+  foreignKey?: ForeignKeyDef;
 }
-
 
 type RendererProps<K extends TableKey> = {
   id: string;
@@ -95,7 +99,8 @@ const structure = {
   tables: {
     students: {
       columns:{
-        numero_libreta   :{type: 'string', label: "Número de Libreta / Student ID:", required: true, readonlyOnEdit: true},
+        numero_libreta   :{type: 'string', label: "Número de Libreta / Student ID:", required: true, readonlyOnEdit: true,
+        },
         dni              :{type: 'string', label: 'DNI / ID Number:', required: true},
         first_name       :{type: 'string', label: 'Nombre / First Name:', required: true},
         last_name        :{type: 'string', label: 'Apellido / Last Name:', required: true},
@@ -129,9 +134,21 @@ const structure = {
         pk: ['numero_libreta', 'cod_mat'],
         uiName: 'Enrollment',
         columns: {
-          numero_libreta: { type: 'string', label: 'Número de Libreta / Student ID:', required: true, readonlyOnEdit: true },
+          numero_libreta: { type: 'string', label: 'Número de Libreta / Student ID:', required: true, readonlyOnEdit: true, input: 'select',
+            foreignKey: {
+              table: "students",
+              valueField: "numero_libreta",
+              labelField: "numero_libreta"
+            }
+          },
           student_name: { type: 'string', label: 'Nombre del Alumno / Student Name:', editable: false },
-          cod_mat: { type: 'string', label: 'Código de Materia / Subject Code:', required: true, readonlyOnEdit: true },
+          cod_mat: { type: 'string', label: 'Código de Materia / Subject Code:', required: true, readonlyOnEdit: true, input: 'select', 
+            foreignKey: {
+              table: "subjects",
+              valueField: 'cod_mat',
+              labelField: 'name'
+            },
+          },
           subject_name: { type: 'string', label: 'Nombre de Materia / Subject Name:', editable: false },
           enrollment_date: { type: 'string', label: 'Fecha de Inscripción / Enrollment Date:', input: 'date', required: true },
           grade: { type: 'number', label: 'Nota / Grade:', input: 'number', nullable: true },
@@ -282,7 +299,7 @@ function getFieldElementId(tableKey: TableKey, fieldName: string): string {
 }
 
 
-function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof TableRecordMap[K] & string, column: ColumnDef, record?: Partial<TableRecordMap[K]>, isEdit = false): HTMLElement {
+async function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof TableRecordMap[K] & string, column: ColumnDef, record?: Partial<TableRecordMap[K]>, isEdit = false): Promise<HTMLElement> {
   const id = getFieldElementId(tableKey, fieldName);
   const labelText = column.label ?? '';
   const wrapper = document.createElement('div');
@@ -294,6 +311,20 @@ function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof Table
   wrapper.appendChild(labelEl);
   const rendererKey = mapInputToRenderer(column.input);
   const renderer = getRenderer<K>(rendererKey);
+
+  if (column.foreignKey) {
+    
+    const fk = column.foreignKey;
+
+    const response = await fetch(`${API_BASE}/${fk.table}`);
+    const rows = await response.json();
+
+    column.options = rows.map((row: any) => ({
+      value: row[fk.valueField],
+      label: `${row[fk.valueField]} - ${row[fk.labelField]}`
+    }));
+  } 
+
   const inputEl = renderer({ id, fieldName, column, record, isEdit });
   wrapper.appendChild(inputEl);
   return wrapper;
@@ -339,9 +370,19 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
   const isEdit = !!record;
   const formId = `${tableKey}-form`;
 
-  const fields = Object.entries(tableConfig.columns)
+  const fields = await Promise.all(
+  Object.entries(tableConfig.columns)
     .filter(([, column]) => column.editable !== false)
-    .map(([fieldName, column]) => renderFormField(tableKey, fieldName as keyof TableRecordMap[K] & string, column, record, isEdit));
+    .map(([fieldName, column]) =>
+      renderFormField(
+        tableKey,
+        fieldName as keyof TableRecordMap[K] & string,
+        column,
+        record,
+        isEdit
+      )
+    )
+);
 
   // build form DOM
   formContainer.innerHTML = '';
