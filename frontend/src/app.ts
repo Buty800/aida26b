@@ -382,66 +382,72 @@ async function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof
   const inputEl = renderer({ id, fieldName, column, record, isEdit });
   wrapper.appendChild(inputEl);
 
-  if (
-    column.foreignKey?.dependsOn &&
-    inputEl instanceof HTMLSelectElement
-  ) {
-   
+  return wrapper;
+}
+
+function setupDependentSelects<K extends TableKey>(
+  tableKey: K
+) {
+
+  const tableConfig = structure.tables[tableKey];
+
+  for (const [fieldName, column] of Object.entries(tableConfig.columns)) {
+
+    if (
+      !column.foreignKey?.dependsOn
+    ) continue;
+
     const fk = column.foreignKey;
 
-    const parentId = getFieldElementId(
-      tableKey,
-      fk.dependsOn!.field
+    const childId =
+      getFieldElementId(tableKey, fieldName);
+
+    const parentId =
+      getFieldElementId(tableKey, fk.dependsOn.field);
+
+    const childSelect =
+      document.getElementById(childId) as HTMLSelectElement | null;
+
+    const parentSelect =
+      document.getElementById(parentId) as HTMLSelectElement | null;
+
+    if (!childSelect || !parentSelect) {console.log("childSelect or parentSelect didnt render"); continue;}
+
+    const loadOptions = async () => {
+
+      const value = parentSelect.value;
+
+      childSelect.innerHTML = '';
+
+      if (!value) {console.log("parentSelect empty"); return;}
+
+      console.log("fetching");
+      const response = await fetch(
+        `${API_BASE}/${fk.table}?${fk.dependsOn.foreignField}=${encodeURIComponent(value)}`
+      );
+
+      const rows = await response.json();
+
+      rows.forEach((row: any) => {
+
+        const option = document.createElement('option');
+
+        option.value = row[fk.valueField];
+
+        option.textContent =
+          `${row[fk.valueField]} - ${row[fk.labelField]}`;
+
+        childSelect.appendChild(option);
+      });
+    };
+
+    loadOptions();
+
+    parentSelect.addEventListener(
+      'change',
+      loadOptions
     );
-
-    setTimeout(() => {
-
-      const parentSelect =
-        document.getElementById(parentId) as HTMLSelectElement | null;
-
-      if (!parentSelect) {console.log("parent not selected"); return;}
-
-      const loadOptions = async () => {
-
-        const value = parentSelect.value;
-
-        if (!value) {
-          inputEl.innerHTML = '';
-          return;
-        }
-
-        const response = await fetch(
-          `${API_BASE}/${fk.table}?${fk.dependsOn!.foreignField}=${encodeURIComponent(value)}`
-        );
-
-        const rows = await response.json();
-
-        inputEl.innerHTML = '';
-
-        rows.forEach((row: any) => {
-
-          const option = document.createElement('option');
-
-          option.value = row[fk.valueField];
-
-          option.textContent =
-            `${row[fk.valueField]} - ${row[fk.labelField]}`;
-
-          inputEl.appendChild(option);
-        });
-        
-      };
-
-      // carga inicial
-      loadOptions();
-
-      // recarga dinámica, cada que alguien seleccione algo en el select padre
-      parentSelect.addEventListener('change', loadOptions);
-
-    });
   }
-
-  return wrapper;
 }
 
 function collectFormData<K extends TableKey>(tableKey: K): Partial<TableRecordMap[K]> {
@@ -551,6 +557,9 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
       console.error(`Error saving ${tableConfig.uiName.toLowerCase()}:`, error);
     }
   });
+
+  setupDependentSelects(tableKey); //después de crear el dom ponemos los listeners entre selects
+
 }
 
 declare global {
