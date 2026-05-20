@@ -91,6 +91,16 @@ type TableStructure = {
 type InferType<FieldDefs extends Record<string, ColumnDef>> = {
   [K in keyof FieldDefs]: TypeMap[FieldDefs[K]['type']]
 }
+
+const translations = {
+  en:{
+    system_title: "University Management System",
+  },
+  es:{
+    system_title: "Sistema de Gestión Universitaria",
+  }
+}
+
 const structure = {
   tables: {
     students: {
@@ -145,11 +155,29 @@ const structure = {
         title: 'Inscripciones / Enrollments',
         addButtonLabel: 'Agregar Inscripción / Add Enrollment'
       } satisfies TableStructure
+  },
+  menu: {
+    theme:{
+      title: "🌙",
+      handler: () => {
+        const current =document.body.getAttribute("data-theme");
+        if (current === "dark") {
+            document.body.setAttribute("data-theme","light");
+        } else {
+            document.body.setAttribute("data-theme","dark");
+        }
+      },
+      id: "theme-toggle"
+    },
+    lenguage: {
+      title: "EN/ES",
+      handler: () => {
+       
+      },
+      id: "language-toggle"
+    }
   }
 }
-
-
-
 
 type TableKey = keyof typeof structure.tables;
 
@@ -164,8 +192,12 @@ const formContainer = document.getElementById('record-form') as HTMLElement;
 const sharedTable = document.getElementById('records-table') as HTMLTableElement;
 
 const tableKeys = Object.keys(structure.tables) as TableKey[];
+const menuKeys = Object.keys(structure.menu) as Array<keyof typeof structure.menu>;
 const navContainer = document.getElementById('table-nav') as HTMLElement | null;
+const menuContainer = document.getElementById('menu-nav') as HTMLElement | null;
+
 if (!navContainer) throw new Error('Missing #table-nav element in DOM');
+if (!menuContainer) throw new Error('Missing #menu-nav element in DOM');
 
 const tableNavButtons = {} as Record<TableKey, HTMLButtonElement>;
 for (const key of tableKeys) {
@@ -425,7 +457,21 @@ window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: strin
   }
 };
 
+const renderAnyMenuOption = (key:string) => {
+  const cfg = structure.menu[key as keyof typeof structure.menu];
+  const btn = document.createElement('button');
+  btn.id = cfg.id;
+  btn.textContent = cfg.title;
+  btn.addEventListener('click', cfg.handler);
+  menuContainer.appendChild(btn);
+}
+
+const showMenu = () => {
+  menuKeys.forEach((key) => {renderAnyMenuOption(key)});
+};
+
 // Initialize
 showSection(activeTableKey);
+showMenu();
 
 export {};
