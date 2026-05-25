@@ -6,10 +6,15 @@
   "scripts": {
     "build": "tsc && node ./copy-static.cjs",
     "start": "http-server dist -p 8080",
-    "dev": "tsc --watch & http-server src -p 8080"
+    "dev": "tsc --watch & http-server src -p 8080",
+    "test": "jest"
   },
   "devDependencies": {
-    "typescript": "^5.1.6",
-    "http-server": "^14.1.1"
+    "@types/jest": "^30.0.0",
+    "http-server": "^14.1.1",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
+    "ts-jest": "^29.4.11",
+    "typescript": "^5.9.3"
   }
 }
