@@ -118,6 +118,13 @@ function buildListQuery(
   return { dataQuery, dataValues, countQuery, countValues: values };
 }
 
+function validateMaxLength(value: string, field: string, max: number): string | null {
+  if (value.length > max) {
+    return `${field} must be at most ${max} characters`;
+  }
+  return null;
+}
+
 // Routes TODO: esto tiene que ser eliminado cuando se unifique el SST con el frontend por el otro PR.
 const studentFilters: Record<string, FilterConfig> = {
   numero_libreta: { type: 'string' },
@@ -176,6 +183,22 @@ app.get('/api/students/:numero_libreta', async (req, res) => {
 app.post('/api/students', async (req, res) => {
   try {
     const { numero_libreta, dni, first_name, last_name, email, enrollment_date, status } = req.body;
+
+    const validations = [
+      validateMaxLength(numero_libreta, 'numero_libreta', 20),
+      validateMaxLength(dni, 'dni', 20),
+      validateMaxLength(first_name, 'first_name', 100),
+      validateMaxLength(last_name, 'last_name', 100),
+      email ? validateMaxLength(email, 'email', 255) : null,
+      status ? validateMaxLength(status, 'status', 50) : null,
+    ].filter(Boolean);
+
+    if (validations.length > 0) {
+      return res.status(400).json({
+        error: validations[0],
+      });
+    }
+
     const result = await pool.query(
       'INSERT INTO students (numero_libreta, dni, first_name, last_name, email, enrollment_date, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
       [numero_libreta, dni, first_name, last_name, email, enrollment_date, status]
