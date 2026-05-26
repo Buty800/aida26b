@@ -381,11 +381,11 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
   Object.entries(tableStructure.columns).forEach(([fieldName, column]) => {
     const th = document.createElement('th');
     th.textContent = column.label || fieldName;
-    th.style.cursor = 'pointer';
+    th.className = 'sortable';
     th.title = 'Click to sort';
 
     if (currentState.sort === fieldName) {
-      th.textContent += currentState.dir === 'desc' ? ' ▼' : ' ▲';
+      th.classList.add(currentState.dir === 'desc' ? 'sorted-desc' : 'sorted-asc');
     }
 
     th.addEventListener('click', () => {

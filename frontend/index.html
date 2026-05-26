@@ -56,6 +56,30 @@
         th {
             background-color: #f8f9fa;
             font-weight: bold;
+            user-select: none;
+            cursor: pointer;
+        }
+        th:hover {
+            background-color: #d9dcef;
+        }
+        th.sortable::after {
+            content: ' \2195';
+            color: transparent;
+        }
+        th.sortable:hover::after {
+            color: #6c757d;
+        }
+        th.sorted-asc::after {
+            content: ' \25B2';
+            color: #0056b3;
+        }
+        th.sorted-desc::after {
+            content: ' \25BC';
+            color: #0056b3;
+        }
+        th.sorted-asc:hover::after,
+        th.sorted-desc:hover::after {
+            color: #003d80;
         }
         .actions {
             display: flex;
