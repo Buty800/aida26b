@@ -6,10 +6,13 @@
   "scripts": {
     "build": "tsc && node ./copy-static.cjs",
     "start": "http-server dist -p 8080",
-    "dev": "tsc --watch & http-server src -p 8080"
+    "dev": "tsc --watch & http-server src -p 8080",
+    "e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "devDependencies": {
-    "typescript": "^5.1.6",
-    "http-server": "^14.1.1"
+    "@playwright/test": "^1.49.0",
+    "@types/node": "^25.9.1",
+    "http-server": "^14.1.1",
+    "typescript": "^5.1.6"
   }
 }
