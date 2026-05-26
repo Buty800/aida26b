@@ -187,7 +187,6 @@ let activeTableKey: TableKey = tableKeys[0] as TableKey;
 // --- State Management ---
 type TableState = {
   page: number;
-  limit: number;
   sort?: string;
   dir?: 'asc' | 'desc';
   filters: Record<string, string>;
@@ -195,7 +194,6 @@ type TableState = {
 
 let currentState: TableState = {
   page: 1,
-  limit: 10,
   filters: {}
 };
 
@@ -203,7 +201,6 @@ function syncStateToUrl() {
   const params = new URLSearchParams();
   params.set('table', activeTableKey);
   params.set('page', String(currentState.page));
-  params.set('limit', String(currentState.limit));
   if (currentState.sort) {
     params.set('sort', currentState.sort);
     params.set('dir', currentState.dir || 'asc');
@@ -221,7 +218,6 @@ function syncUrlToState() {
     activeTableKey = table;
   }
   currentState.page = parseInt(params.get('page') || '1');
-  currentState.limit = parseInt(params.get('limit') || '10');
   currentState.sort = params.get('sort') || undefined;
   currentState.dir = (params.get('dir') as 'asc' | 'desc') || undefined;
 
@@ -293,7 +289,7 @@ function renderFilters<K extends TableKey>(tableKey: K) {
 
 function renderPagination(total: number) {
   paginationContainer.innerHTML = '';
-  const totalPages = Math.ceil(total / currentState.limit) || 1;
+  const totalPages = Math.ceil(total / 20) || 1;
 
   const info = document.createElement('span');
   info.textContent = `Página ${currentState.page} de ${totalPages} (Total: ${total})`;
@@ -326,7 +322,7 @@ function renderPagination(total: number) {
 
 function showSection(section: TableKey, pushState = true) {
   if (activeTableKey !== section && pushState) {
-    currentState = { page: 1, limit: 10, filters: {} };
+    currentState = { page: 1, filters: {} };
   }
   activeTableKey = section;
 
@@ -349,7 +345,6 @@ async function loadTableData<K extends TableKey>(tableKey: K) {
   try {
     const params = new URLSearchParams();
     params.set('page', String(currentState.page));
-    params.set('limit', String(currentState.limit));
     if (currentState.sort) {
       params.set('sort', currentState.sort);
       params.set('dir', currentState.dir || 'asc');

@@ -50,8 +50,8 @@ function buildListQuery(
   const sortDir = query.dir === 'desc' ? 'DESC' : 'ASC';
   const orderClause = `ORDER BY "${sortCol}" ${sortDir}`;
 
-  const page = parseInt(query.page as string) || 1;
-  const limit = parseInt(query.limit as string) || 10;
+  const page = Math.max(1, parseInt(query.page as string) || 1);
+  const limit = 20;
   const offset = (page - 1) * limit;
 
   const fromClause = tableNameOrCTE.includes(' ') ? `FROM (${tableNameOrCTE}) as base` : `FROM ${tableNameOrCTE}`;
