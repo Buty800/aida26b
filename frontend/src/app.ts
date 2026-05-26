@@ -35,7 +35,7 @@ type RendererProps<K extends TableKey> = {
 };
 type RendererFunc = <K extends TableKey>(props: RendererProps<K>) => HTMLElement;
 
-const renderers: Record<'input' | 'textarea' | 'select', RendererFunc> = {
+const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
   input<K extends TableKey>({ id, fieldName, column, record, isEdit }: RendererProps<K>) {
     const inp = document.createElement('input');
     inp.id = id;
@@ -281,7 +281,7 @@ function syncUrlToState() {
 
 window.addEventListener('popstate', () => {
   syncUrlToState();
-  showSection(activeTableKey, false);
+  showSection(activeTableKey, true);
 });
 
 const filterContainer = document.createElement('div');
@@ -571,7 +571,7 @@ function showSection(section: TableKey, pushState = true) {
   });
 
   const tableConfig = structure.tables[section];
-  viewTitle.textContent = tableConfig.title ?? tableConfig.uiName;
+  viewTitle.textContent = tableConfig.title ?? '';
   addRecordBtn.textContent = tableConfig.addButtonLabel || `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`;
   hideAnyForm();
   renderFilters(section);
@@ -603,6 +603,7 @@ async function loadTableData<K extends TableKey>(tableKey: K) {
     renderPagination(total);
   } catch (error) {
     console.error(`Error loading ${tableKey}:`, error);
+    alert('Error al cargar datos / Error loading data');
   }
 }
 
@@ -809,6 +810,7 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
       loadTableData(tableKey);
     } catch (error) {
       console.error(`Error saving ${tableConfig.uiName.toLowerCase()}:`, error);
+      alert('Error al guardar / Error saving');
     }
   });
 }
@@ -831,6 +833,7 @@ window.editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[
     showAnyForm(tableKey, record);
   } catch (error) {
     console.error(`Error loading ${tableKey} for edit:`, error);
+    alert('Error al cargar registro / Error loading record');
   }
 };
 window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
@@ -841,12 +844,13 @@ window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: strin
       loadTableData(tableKey);
     } catch (error) {
       console.error(`Error deleting ${tableKey}:`, error);
+      alert('Error al eliminar / Error deleting');
     }
   }
 };
 
 // Initialize
 syncUrlToState();
-showSection(activeTableKey, false);
+showSection(activeTableKey, true);
 
 export { };

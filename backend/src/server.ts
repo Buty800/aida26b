@@ -70,25 +70,34 @@ function buildListQuery(
           const hasMax = maxPart !== '';
 
           if (hasMin && hasMax) {
+            const nMin = parseFloat(minPart);
+            const nMax = parseFloat(maxPart);
+            if (isNaN(nMin) || isNaN(nMax)) continue;
             if (negated) {
               conditions.push(`("${fieldName}" < $${paramIndex} OR "${fieldName}" > $${paramIndex + 1})`);
             } else {
               conditions.push(`"${fieldName}" >= $${paramIndex} AND "${fieldName}" <= $${paramIndex + 1}`);
             }
-            values.push(parseFloat(minPart), parseFloat(maxPart));
+            values.push(nMin, nMax);
             paramIndex += 2;
           } else if (hasMin) {
+            const n = parseFloat(minPart);
+            if (isNaN(n)) continue;
             conditions.push(`"${fieldName}" ${negated ? '<' : '>='} $${paramIndex}`);
-            values.push(parseFloat(minPart));
+            values.push(n);
             paramIndex++;
           } else if (hasMax) {
+            const n = parseFloat(maxPart);
+            if (isNaN(n)) continue;
             conditions.push(`"${fieldName}" ${negated ? '>' : '<='} $${paramIndex}`);
-            values.push(parseFloat(maxPart));
+            values.push(n);
             paramIndex++;
           }
         } else {
+          const n = parseFloat(actualVal);
+          if (isNaN(n)) continue;
           conditions.push(`"${fieldName}" ${negated ? '<' : '>='} $${paramIndex}`);
-          values.push(parseFloat(actualVal));
+          values.push(n);
           paramIndex++;
         }
       }
@@ -99,7 +108,7 @@ function buildListQuery(
   const sortCol = query.sort && allowedColumns.includes(query.sort as string) ? query.sort : defaultSort;
   const sortDir = query.dir === 'desc' ? 'DESC' : 'ASC';
   const orderClause = `ORDER BY "${sortCol}" ${sortDir}`;
-  const page = Math.max(1, parseInt(query.page as string) || 1);
+  const page = Math.max(1, Math.min(parseInt(query.page as string) || 1, 1000));
   const limit = 20;
   const offset = (page - 1) * limit;
   const fromClause = tableNameOrCTE.includes(' ') ? `FROM (${tableNameOrCTE}) as base` : `FROM ${tableNameOrCTE}`;
@@ -109,7 +118,7 @@ function buildListQuery(
   return { dataQuery, dataValues, countQuery, countValues: values };
 }
 
-// Routes
+// Routes TODO: esto tiene que ser eliminado cuando se unifique el SST con el frontend por el otro PR.
 const studentFilters: Record<string, FilterConfig> = {
   numero_libreta: { type: 'string' },
   dni: { type: 'string' },
