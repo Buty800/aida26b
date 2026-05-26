@@ -185,17 +185,38 @@ for (const key of tableKeys) {
 let activeTableKey: TableKey = tableKeys[0] as TableKey;
 
 // --- State Management ---
+type FilterEntry = {
+  negated: boolean;
+  value?: string;
+  min?: string;
+  max?: string;
+};
+
 type TableState = {
   page: number;
   sort?: string;
   dir?: 'asc' | 'desc';
-  filters: Record<string, string>;
+  filters: Record<string, FilterEntry[]>;
 };
 
 let currentState: TableState = {
   page: 1,
   filters: {}
 };
+
+function serializeFilterValue(fieldName: string, entry: FilterEntry): string | null {
+  const col = (structure.tables[activeTableKey] as TableStructure)?.columns[fieldName];
+  let val: string;
+  if (col?.type === 'number') {
+    val = `${entry.min ?? ''},${entry.max ?? ''}`;
+    if (val === ',') return null;
+  } else {
+    val = entry.value ?? '';
+    if (!val) return null;
+  }
+  if (entry.negated) val = '!' + val;
+  return val;
+}
 
 function syncStateToUrl() {
   const params = new URLSearchParams();
@@ -205,9 +226,12 @@ function syncStateToUrl() {
     params.set('sort', currentState.sort);
     params.set('dir', currentState.dir || 'asc');
   }
-  Object.entries(currentState.filters).forEach(([k, v]) => {
-    if (v) params.set(`filter_${k}`, v);
-  });
+  for (const [fieldName, entries] of Object.entries(currentState.filters)) {
+    for (const entry of entries) {
+      const val = serializeFilterValue(fieldName, entry);
+      if (val !== null) params.append(`filter_${fieldName}`, val);
+    }
+  }
   window.history.pushState({}, '', `?${params.toString()}`);
 }
 
@@ -223,9 +247,35 @@ function syncUrlToState() {
 
   currentState.filters = {};
   params.forEach((v, k) => {
-    if (k.startsWith('filter_')) {
-      currentState.filters[k.replace('filter_', '')] = v;
+    if (!k.startsWith('filter_')) return;
+    const fieldName = k.slice(7);
+    const col = (structure.tables[activeTableKey] as TableStructure)?.columns[fieldName];
+    if (!col) return;
+
+    const strVal = String(v);
+    if (!strVal) return;
+
+    const negated = strVal.startsWith('!');
+    const actualVal = negated ? strVal.slice(1) : strVal;
+
+    const entry: FilterEntry = { negated };
+
+    if (col.type === 'number') {
+      const commaIdx = actualVal.indexOf(',');
+      if (commaIdx >= 0) {
+        entry.min = actualVal.slice(0, commaIdx);
+        entry.max = actualVal.slice(commaIdx + 1);
+      } else {
+        entry.min = actualVal;
+      }
+    } else {
+      entry.value = actualVal;
     }
+
+    if (!currentState.filters[fieldName]) {
+      currentState.filters[fieldName] = [];
+    }
+    currentState.filters[fieldName].push(entry);
   });
 }
 
@@ -250,41 +300,220 @@ paginationContainer.style.gap = '10px';
 paginationContainer.style.alignItems = 'center';
 sharedTable.parentNode?.insertBefore(paginationContainer, sharedTable.nextSibling);
 
+function getFilterType(column: ColumnDef): 'string' | 'number' | 'enum' {
+  if (column.type === 'number') return 'number';
+  if (column.input === 'select' && column.options) return 'enum';
+  return 'string';
+}
+
+function createFilterControl(entry: FilterEntry, column: ColumnDef, onChange: () => void): HTMLElement {
+  if (column.type === 'number') {
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.alignItems = 'center';
+    container.style.gap = '4px';
+
+    const minInput = document.createElement('input');
+    minInput.type = 'number';
+    minInput.placeholder = 'Min';
+    minInput.value = entry.min ?? '';
+    minInput.style.width = '80px';
+    minInput.addEventListener('change', () => {
+      entry.min = minInput.value;
+      onChange();
+    });
+    container.appendChild(minInput);
+
+    const sep = document.createElement('span');
+    sep.textContent = '—';
+    container.appendChild(sep);
+
+    const maxInput = document.createElement('input');
+    maxInput.type = 'number';
+    maxInput.placeholder = 'Max';
+    maxInput.value = entry.max ?? '';
+    maxInput.style.width = '80px';
+    maxInput.addEventListener('change', () => {
+      entry.max = maxInput.value;
+      onChange();
+    });
+    container.appendChild(maxInput);
+    return container;
+  }
+
+  if (column.input === 'select' && column.options) {
+    const sel = document.createElement('select');
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '--';
+    sel.appendChild(blank);
+    for (const opt of column.options) {
+      const o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      if (entry.value === opt.value) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.addEventListener('change', () => {
+      entry.value = sel.value || undefined;
+      onChange();
+    });
+    return sel;
+  }
+
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.placeholder = 'Filter...';
+  inp.value = entry.value ?? '';
+  inp.style.width = '150px';
+  inp.addEventListener('change', () => {
+    entry.value = inp.value || undefined;
+    onChange();
+  });
+  return inp;
+}
+
 function renderFilters<K extends TableKey>(tableKey: K) {
   filterContainer.innerHTML = '';
   const tableStructure = structure.tables[tableKey];
+  const allColumns = Object.entries(tableStructure.columns);
 
-  Object.entries(tableStructure.columns).forEach(([fieldName, column]) => {
-    const wrapper = document.createElement('div');
-    wrapper.style.display = 'flex';
-    wrapper.style.flexDirection = 'column';
-    wrapper.style.fontSize = '0.9em';
+  const addBar = document.createElement('div');
+  addBar.style.marginBottom = '10px';
+  addBar.style.display = 'flex';
+  addBar.style.gap = '8px';
+  addBar.style.alignItems = 'center';
 
-    const label = document.createElement('label');
-    label.textContent = column.label || fieldName;
-    wrapper.appendChild(label);
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ Agregar Filtro / Add Filter';
+  addBtn.className = 'add-btn';
+  addBtn.style.marginBottom = '0';
+  addBar.appendChild(addBtn);
 
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = currentState.filters[fieldName] || '';
-    input.placeholder = 'Filtrar...';
-    input.style.padding = '4px';
-
-    input.addEventListener('change', (e) => {
-      const val = (e.target as HTMLInputElement).value.trim();
-      if (val) {
-        currentState.filters[fieldName] = val;
-      } else {
-        delete currentState.filters[fieldName];
-      }
-      currentState.page = 1;
-      syncStateToUrl();
-      loadTableData(tableKey);
-    });
-
-    wrapper.appendChild(input);
-    filterContainer.appendChild(wrapper);
+  const addDropdown = document.createElement('select');
+  addDropdown.style.display = 'none';
+  const ph = document.createElement('option');
+  ph.value = '';
+  ph.textContent = '-- Seleccionar columna / Select column --';
+  addDropdown.appendChild(ph);
+  allColumns.forEach(([fieldName, column]) => {
+    const opt = document.createElement('option');
+    opt.value = fieldName;
+    opt.textContent = column.label || fieldName;
+    addDropdown.appendChild(opt);
   });
+  addBar.appendChild(addDropdown);
+
+  addBtn.addEventListener('click', () => {
+    addDropdown.style.display = addDropdown.style.display === 'none' ? 'inline-block' : 'none';
+  });
+
+  addDropdown.addEventListener('change', () => {
+    const fieldName = addDropdown.value;
+    addDropdown.value = '';
+    addDropdown.style.display = 'none';
+    if (!fieldName) return;
+    const col = (tableStructure.columns as Record<string, ColumnDef>)[fieldName];
+    if (!col) return;
+    const entry: FilterEntry = { negated: false };
+    if (col.type === 'number') { entry.min = ''; entry.max = ''; }
+    else { entry.value = ''; }
+    if (!currentState.filters[fieldName]) currentState.filters[fieldName] = [];
+    currentState.filters[fieldName].push(entry);
+    currentState.page = 1;
+    syncStateToUrl();
+    renderFilters(tableKey);
+    loadTableData(tableKey);
+  });
+
+  filterContainer.appendChild(addBar);
+
+  for (const [fieldName, entries] of Object.entries(currentState.filters)) {
+    for (let idx = 0; idx < entries.length; idx++) {
+      const entry = entries[idx];
+      const column = (tableStructure.columns as Record<string, ColumnDef>)[fieldName];
+      if (!column) continue;
+
+      const row = document.createElement('div');
+      row.className = 'filter-row';
+      if (entry.negated) row.classList.add('negated');
+
+      const colDropdown = document.createElement('select');
+      colDropdown.className = 'filter-col-select';
+      allColumns.forEach(([fn, col]) => {
+        const opt = document.createElement('option');
+        opt.value = fn;
+        opt.textContent = col.label || fn;
+        if (fn === fieldName) opt.selected = true;
+        colDropdown.appendChild(opt);
+      });
+      colDropdown.addEventListener('change', () => {
+        const newField = colDropdown.value;
+        if (newField === fieldName) return;
+        const newCol = (tableStructure.columns as Record<string, ColumnDef>)[newField];
+        if (!newCol) return;
+        const oldType = getFilterType(column);
+        const newType = getFilterType(newCol);
+        if (oldType !== newType) {
+          entry.value = undefined;
+          entry.min = undefined;
+          entry.max = undefined;
+        }
+        if (newCol.type === 'number') {
+          if (entry.value) { entry.min = entry.value; entry.value = undefined; }
+        } else {
+          if (entry.min !== undefined) { entry.value = entry.min; entry.min = undefined; entry.max = undefined; }
+        }
+        if (!currentState.filters[newField]) currentState.filters[newField] = [];
+        currentState.filters[newField].push(entry);
+        currentState.filters[fieldName].splice(idx, 1);
+        if (currentState.filters[fieldName].length === 0) delete currentState.filters[fieldName];
+        currentState.page = 1;
+        syncStateToUrl();
+        renderFilters(tableKey);
+        loadTableData(tableKey);
+      });
+      row.appendChild(colDropdown);
+
+      const onChange = () => {
+        currentState.page = 1;
+        syncStateToUrl();
+        loadTableData(tableKey);
+      };
+
+      row.appendChild(createFilterControl(entry, column, onChange));
+
+      const negBtn = document.createElement('button');
+      negBtn.textContent = 'NOT';
+      negBtn.className = 'negate-btn';
+      if (entry.negated) negBtn.classList.add('active');
+      negBtn.title = 'Toggle negation';
+      negBtn.addEventListener('click', () => {
+        entry.negated = !entry.negated;
+        currentState.page = 1;
+        syncStateToUrl();
+        renderFilters(tableKey);
+        loadTableData(tableKey);
+      });
+      row.appendChild(negBtn);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = '✕';
+      removeBtn.className = 'remove-filter-btn';
+      removeBtn.title = 'Remove filter';
+      removeBtn.addEventListener('click', () => {
+        currentState.filters[fieldName].splice(idx, 1);
+        if (currentState.filters[fieldName].length === 0) delete currentState.filters[fieldName];
+        currentState.page = 1;
+        syncStateToUrl();
+        renderFilters(tableKey);
+        loadTableData(tableKey);
+      });
+      row.appendChild(removeBtn);
+
+      filterContainer.appendChild(row);
+    }
+  }
 }
 
 function renderPagination(total: number) {
@@ -323,6 +552,15 @@ function renderPagination(total: number) {
 function showSection(section: TableKey, pushState = true) {
   if (activeTableKey !== section && pushState) {
     currentState = { page: 1, filters: {} };
+    const cfg = structure.tables[section];
+    const pkField = Array.isArray(cfg.pk) ? cfg.pk[0] : cfg.pk;
+    const pkCol = (cfg.columns as Record<string, ColumnDef>)[pkField];
+    if (pkCol) {
+      const entry: FilterEntry = { negated: false };
+      if (pkCol.type === 'number') { entry.min = ''; entry.max = ''; }
+      else { entry.value = ''; }
+      currentState.filters[pkField] = [entry];
+    }
   }
   activeTableKey = section;
 
@@ -349,9 +587,12 @@ async function loadTableData<K extends TableKey>(tableKey: K) {
       params.set('sort', currentState.sort);
       params.set('dir', currentState.dir || 'asc');
     }
-    Object.entries(currentState.filters).forEach(([k, v]) => {
-      if (v) params.set(`filter_${k}`, v);
-    });
+    for (const [fieldName, entries] of Object.entries(currentState.filters)) {
+      for (const entry of entries) {
+        const val = serializeFilterValue(fieldName, entry);
+        if (val !== null) params.append(`filter_${fieldName}`, val);
+      }
+    }
 
     const response = await fetch(`${API_BASE}/${tableKey}?${params.toString()}`);
     const result = await response.json();

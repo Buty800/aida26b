@@ -23,24 +23,74 @@ const pool = new Pool({
 app.use(cors());
 app.use(express.json());
 
-// Query builder helper for filtering, sorting, and pagination
+type FilterConfig = {
+  type: 'string' | 'number' | 'enum';
+};
+
 function buildListQuery(
   tableNameOrCTE: string,
   query: any,
-  allowedColumns: string[],
+  filterConfig: Record<string, FilterConfig>,
   defaultSort: string
 ) {
   const conditions: string[] = [];
   const values: any[] = [];
   let paramIndex = 1;
+  const allowedColumns = Object.keys(filterConfig);
 
-  for (const [key, value] of Object.entries(query)) {
-    if (key.startsWith('filter_')) {
-      const col = key.replace('filter_', '');
-      if (allowedColumns.includes(col) && value) {
-        conditions.push(`"${col}"::text ILIKE $${paramIndex}`);
-        values.push(`%${value}%`);
+  for (const [key, rawValue] of Object.entries(query)) {
+    if (!key.startsWith('filter_') || !rawValue) continue;
+    const fieldName = key.slice(7);
+    const config = filterConfig[fieldName];
+    if (!config) continue;
+
+    const vals = Array.isArray(rawValue) ? rawValue : [rawValue];
+
+    for (const v of vals) {
+      const strVal = String(v);
+      if (!strVal) continue;
+
+      const negated = strVal.startsWith('!');
+      const actualVal = negated ? strVal.slice(1) : strVal;
+
+      if (config.type === 'string') {
+        conditions.push(`"${fieldName}"::text ${negated ? 'NOT ' : ''}ILIKE $${paramIndex}`);
+        values.push(`%${actualVal}%`);
         paramIndex++;
+      } else if (config.type === 'enum') {
+        conditions.push(`"${fieldName}" ${negated ? '!=' : '='} $${paramIndex}`);
+        values.push(actualVal);
+        paramIndex++;
+      } else if (config.type === 'number') {
+        const commaIdx = actualVal.indexOf(',');
+        if (commaIdx >= 0) {
+          const minPart = actualVal.slice(0, commaIdx);
+          const maxPart = actualVal.slice(commaIdx + 1);
+          const hasMin = minPart !== '';
+          const hasMax = maxPart !== '';
+
+          if (hasMin && hasMax) {
+            if (negated) {
+              conditions.push(`("${fieldName}" < $${paramIndex} OR "${fieldName}" > $${paramIndex + 1})`);
+            } else {
+              conditions.push(`"${fieldName}" >= $${paramIndex} AND "${fieldName}" <= $${paramIndex + 1}`);
+            }
+            values.push(parseFloat(minPart), parseFloat(maxPart));
+            paramIndex += 2;
+          } else if (hasMin) {
+            conditions.push(`"${fieldName}" ${negated ? '<' : '>='} $${paramIndex}`);
+            values.push(parseFloat(minPart));
+            paramIndex++;
+          } else if (hasMax) {
+            conditions.push(`"${fieldName}" ${negated ? '>' : '<='} $${paramIndex}`);
+            values.push(parseFloat(maxPart));
+            paramIndex++;
+          }
+        } else {
+          conditions.push(`"${fieldName}" ${negated ? '<' : '>='} $${paramIndex}`);
+          values.push(parseFloat(actualVal));
+          paramIndex++;
+        }
       }
     }
   }
@@ -49,26 +99,46 @@ function buildListQuery(
   const sortCol = query.sort && allowedColumns.includes(query.sort as string) ? query.sort : defaultSort;
   const sortDir = query.dir === 'desc' ? 'DESC' : 'ASC';
   const orderClause = `ORDER BY "${sortCol}" ${sortDir}`;
-
   const page = Math.max(1, parseInt(query.page as string) || 1);
   const limit = 20;
   const offset = (page - 1) * limit;
-
   const fromClause = tableNameOrCTE.includes(' ') ? `FROM (${tableNameOrCTE}) as base` : `FROM ${tableNameOrCTE}`;
-
   const dataQuery = `SELECT * ${fromClause} ${whereClause} ${orderClause} LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
   const dataValues = [...values, limit, offset];
-
   const countQuery = `SELECT COUNT(*) ${fromClause} ${whereClause}`;
-
   return { dataQuery, dataValues, countQuery, countValues: values };
 }
 
 // Routes
+const studentFilters: Record<string, FilterConfig> = {
+  numero_libreta: { type: 'string' },
+  dni: { type: 'string' },
+  first_name: { type: 'string' },
+  last_name: { type: 'string' },
+  email: { type: 'string' },
+  enrollment_date: { type: 'string' },
+  status: { type: 'enum' },
+};
+const subjectFilters: Record<string, FilterConfig> = {
+  cod_mat: { type: 'string' },
+  name: { type: 'string' },
+  description: { type: 'string' },
+  credits: { type: 'number' },
+  department: { type: 'string' },
+};
+const enrollmentFilters: Record<string, FilterConfig> = {
+  numero_libreta: { type: 'string' },
+  student_name: { type: 'string' },
+  cod_mat: { type: 'string' },
+  subject_name: { type: 'string' },
+  enrollment_date: { type: 'string' },
+  grade: { type: 'number' },
+  status: { type: 'enum' },
+};
+
 app.get('/api/students', async (req, res) => {
   try {
-    const allowed = ['numero_libreta', 'dni', 'first_name', 'last_name', 'email', 'enrollment_date', 'status'];
-    const { dataQuery, dataValues, countQuery, countValues } = buildListQuery('students', req.query, allowed, 'numero_libreta');
+    const { dataQuery, dataValues, countQuery, countValues } = buildListQuery('students', req.query, studentFilters, 'numero_libreta');
     const [dataResult, countResult] = await Promise.all([
       pool.query(dataQuery, dataValues),
       pool.query(countQuery, countValues)
@@ -143,8 +213,7 @@ app.delete('/api/students/:numero_libreta', async (req, res) => {
 // Subjects routes
 app.get('/api/subjects', async (req, res) => {
   try {
-    const allowed = ['cod_mat', 'name', 'description', 'credits', 'department'];
-    const { dataQuery, dataValues, countQuery, countValues } = buildListQuery('subjects', req.query, allowed, 'cod_mat');
+    const { dataQuery, dataValues, countQuery, countValues } = buildListQuery('subjects', req.query, subjectFilters, 'cod_mat');
     const [dataResult, countResult] = await Promise.all([
       pool.query(dataQuery, dataValues),
       pool.query(countQuery, countValues)
@@ -225,8 +294,7 @@ app.get('/api/enrollments', async (req, res) => {
       JOIN students s ON e.numero_libreta = s.numero_libreta
       JOIN subjects sub ON e.cod_mat = sub.cod_mat
     `;
-    const allowed = ['numero_libreta', 'student_name', 'cod_mat', 'subject_name', 'enrollment_date', 'grade', 'status'];
-    const { dataQuery, dataValues, countQuery, countValues } = buildListQuery(baseQuery, req.query, allowed, 'numero_libreta');
+    const { dataQuery, dataValues, countQuery, countValues } = buildListQuery(baseQuery, req.query, enrollmentFilters, 'numero_libreta');
     const [dataResult, countResult] = await Promise.all([
       pool.query(dataQuery, dataValues),
       pool.query(countQuery, countValues)
