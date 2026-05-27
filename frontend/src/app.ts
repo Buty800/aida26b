@@ -1,7 +1,7 @@
 // Main application file
 // Code and comments in English
-import {structure} from './structure.js';
-import {TypeMap, MyTypeNames, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap} from './types.js';
+import {structure} from './ssot/structure.js';
+import {TypeMap, MyTypeNames, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap} from './types/types.js';
 
 const API_BASE = '/api';
 

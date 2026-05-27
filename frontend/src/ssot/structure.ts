@@ -1,4 +1,4 @@
-import {TableStructure} from './types.js';
+import {TableStructure} from '../types/types.js';
 
 export const structure = {
   tables: {
