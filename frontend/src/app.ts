@@ -488,27 +488,12 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
   const tableConfig = structure.tables[tableKey];
   const isEdit = !!record;
   const formId = `${tableKey}-form`;
-
-
-  const fields: HTMLElement[] = [];
-    
+   
   resolveDependingForeignKeys(tableKey, record)
 
-  // render secuencial
-  for (const [fieldName, column] of Object.entries(tableConfig.columns)) {
-
-    if (column.editable === false) continue;
-
-    const field = await renderFormField(
-      tableKey,
-      fieldName as keyof TableRecordMap[K] & string,
-      column,
-      record,
-      isEdit
-    );
-
-    fields.push(field);
-  }
+  const fields = await Promise.all(Object.entries(tableConfig.columns)
+  .filter(([, column]) => column.editable !== false)
+  .map(([fieldName, column]) => renderFormField(tableKey, fieldName as keyof TableRecordMap[K] & string, column, record, isEdit)));
 
   // build form DOM
   formContainer.innerHTML = '';
