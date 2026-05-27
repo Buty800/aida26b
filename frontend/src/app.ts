@@ -35,7 +35,7 @@ type RendererProps<K extends TableKey> = {
 };
 type RendererFunc = <K extends TableKey>(props: RendererProps<K>) => HTMLElement;
 
-const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
+const renderers: Record<'input' | 'textarea' | 'select', RendererFunc> = {
   input<K extends TableKey>({ id, fieldName, column, record, isEdit }: RendererProps<K>) {
     const inp = document.createElement('input');
     inp.id = id;
@@ -368,16 +368,17 @@ function createFilterControl(entry: FilterEntry, column: ColumnDef, onChange: ()
   inp.style.width = '150px';
   inp.addEventListener('change', () => {
     entry.value = inp.value || undefined;
+    onChange();
   });
-  
-  /*
+
+
   inp.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     entry.value = inp.value || undefined;
     onChange();
   });
-  */
+
   return inp;
 }
 
