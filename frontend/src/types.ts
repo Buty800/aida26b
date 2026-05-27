@@ -37,3 +37,5 @@ type TableKey = keyof typeof structure.tables;
 type TableRecordMap = {
   [T in keyof typeof structure.tables]: InferType<(typeof structure.tables)[T]['columns']>
 };
+
+export type {TypeMap, MyTypeNames, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap};

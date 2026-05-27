@@ -1,30 +1,12 @@
 // Main application file
 // Code and comments in English
 import {structure} from './structure.js';
+import {TypeMap, MyTypeNames, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap} from './types.js';
 
 const API_BASE = '/api';
 
 
 
-type TypeMap = {
-  string: string;
-  number: number;
-  boolean: boolean;
-  date: Date;
-};
-
-type MyTypeNames = keyof TypeMap;
-
-type ColumnDef = {
-  type: MyTypeNames;
-  label?: string;
-  input?: 'text' | 'email' | 'date' | 'number' | 'textarea' | 'select';
-  options?: Array<{ value: string; label: string }>;
-  required?: boolean;
-  editable?: boolean;
-  readonlyOnEdit?: boolean;
-  nullable?: boolean;
-}
 
 
 type RendererProps<K extends TableKey> = {
@@ -81,23 +63,6 @@ function mapInputToRenderer(input?: ColumnDef['input']): RendererKey {
   return 'input';
 }
 
-type TableStructure = {
-  columns: Record<string, ColumnDef>
-  pk: string | string[]
-  uiName: string
-  title?: string
-  addButtonLabel?: string
-}
-
-type InferType<FieldDefs extends Record<string, ColumnDef>> = {
-  [K in keyof FieldDefs]: TypeMap[FieldDefs[K]['type']]
-}
-
-type TableKey = keyof typeof structure.tables;
-
-type TableRecordMap = {
-  [T in keyof typeof structure.tables]: InferType<(typeof structure.tables)[T]['columns']>
-};
 
 // DOM elements (derive nav buttons from `structure.tables` keys to avoid duplication)
 const viewTitle = document.getElementById('view-title') as HTMLElement;
@@ -388,4 +353,4 @@ const showMenu = () => {
 showSection(activeTableKey);
 showMenu();
 
-export {TableStructure};
+export {};
