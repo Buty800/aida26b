@@ -114,10 +114,10 @@ test.describe('Pagination', () => {
   });
 
   test.afterEach(async ({ baseURL }) => {
-  await cleanupStudents(`${baseURL}/api`, createdIds);
-  createdIds = [];
-});
-
+    if (!baseURL) return;
+    await cleanupStudents(`${baseURL}/api`, createdIds);
+    createdIds = [];
+  });
 
   test.beforeEach(async ({ page, baseURL }, testInfo) => {
     if (!baseURL) throw new Error('Missing baseURL');
@@ -137,51 +137,54 @@ test.describe('Pagination', () => {
     return page.evaluate(() => (window as any).__e2ePrefix as string);
   }
 
-  test('less than one page', async ({ page, baseURL }) => {
+  async function setupRecords(page: Page, baseURL: string | undefined, count: number) {
+    if (!baseURL) throw new Error('Missing baseURL');
     const prefix = await getPrefix(page);
-    const ids = await seedStudents(`${baseURL}/api`, 5, prefix);
+    const ids = await seedStudents(`${baseURL}/api`, count, prefix);
     createdIds.push(...ids);
     await page.reload();
+  }
+
+  test('displays 1 page when records are fewer than limit', async ({ page, baseURL }) => {
+    await setupRecords(page, baseURL, 5);
     await assertPagination(page, 5, 1, 1);
   });
 
-  test('exactly one full page', async ({ page, baseURL }) => {
-    const prefix = await getPrefix(page);
-    const ids = await seedStudents(`${baseURL}/api`, LIMIT, prefix);
-    createdIds.push(...ids);
-    await page.reload();
+  test('displays 1 page when records exactly equal limit', async ({ page, baseURL }) => {
+    await setupRecords(page, baseURL, LIMIT);
     await assertPagination(page, LIMIT, 1, 1);
   });
 
-  test('longer than one page', async ({ page, baseURL }) => {
-    const prefix = await getPrefix(page);
-    const ids = await seedStudents(`${baseURL}/api`, LIMIT + 1, prefix);
-    createdIds.push(...ids);
-    await page.reload();
+  test('displays 2 pages when records exceed limit by one', async ({ page, baseURL }) => {
+    await setupRecords(page, baseURL, LIMIT + 1);
     await assertPagination(page, LIMIT + 1, 1, 2);
+  });
 
+  test('navigates to next page correctly', async ({ page, baseURL }) => {
+    await setupRecords(page, baseURL, LIMIT + 1);
     await page.getByRole('button', { name: 'Siguiente' }).click();
     await assertPagination(page, LIMIT + 1, 2, 2);
+  });
 
+  test('navigates to previous page correctly', async ({ page, baseURL }) => {
+    await setupRecords(page, baseURL, LIMIT + 1);
+    await page.getByRole('button', { name: 'Siguiente' }).click();
     await page.getByRole('button', { name: 'Anterior' }).click();
     await assertPagination(page, LIMIT + 1, 1, 2);
   });
 
-  test('many pages', async ({ page, baseURL }) => {
-    const prefix = await getPrefix(page);
+  test('navigates to last page in a large dataset', async ({ page, baseURL }) => {
     const total = 85;
-    const ids = await seedStudents(`${baseURL}/api`, total, prefix);
-    createdIds.push(...ids);
-    await page.reload();
-    await assertPagination(page, total, 1, 5);
-
+    await setupRecords(page, baseURL, total);
+    // Go to page 5
     for (let p = 2; p <= 5; p++) {
       await page.getByRole('button', { name: 'Siguiente' }).click();
-      await assertPagination(page, total, p, 5);
     }
+    await assertPagination(page, total, 5, 5);
   });
 
-  test('numero_libreta contains: exact, prefix, postfix', async ({ page, baseURL }) => {
+  test('filters correctly by numero_libreta matches', async ({ page, baseURL }) => {
+    if (!baseURL) throw new Error('Missing baseURL');
     const prefix = await getPrefix(page);
     const target = `${prefix}_MATCH`;
 
@@ -212,6 +215,7 @@ test.describe('Pagination', () => {
 });
 
 test('rejects numero_libreta longer than 20 chars', async ({ baseURL }) => {
+  if (!baseURL) throw new Error('Missing baseURL');
   const tooLongId = '123456789012345678901'; // 21 chars
 
   const res = await fetch(`${baseURL}/api/students`, {
@@ -234,7 +238,6 @@ test('rejects numero_libreta longer than 20 chars', async ({ baseURL }) => {
   expect(res.status).toBe(400);
 
   const body = await res.json();
-
   expect(body.error).toMatch(/numero_libreta/i);
 });
 
