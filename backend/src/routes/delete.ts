@@ -1,4 +1,7 @@
-app.delete('/api/students/:numero_libreta', async (req, res) => {
+import { Pool } from "pg";
+import express from 'express';
+
+async function deleteStudent(req: express.Request, res: express.Response, pool: Pool) {
   try {
     const { numero_libreta } = req.params;
     const result = await pool.query('DELETE FROM students WHERE numero_libreta = $1 RETURNING *', [numero_libreta]);
@@ -10,9 +13,9 @@ app.delete('/api/students/:numero_libreta', async (req, res) => {
     console.error('Error deleting student:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.delete('/api/subjects/:cod_mat', async (req, res) => {
+async function deleteSubject(req: express.Request, res: express.Response, pool: Pool) {
   try {
     const { cod_mat } = req.params;
     const result = await pool.query('DELETE FROM subjects WHERE cod_mat = $1 RETURNING *', [cod_mat]);
@@ -24,9 +27,9 @@ app.delete('/api/subjects/:cod_mat', async (req, res) => {
     console.error('Error deleting subject:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.delete('/api/enrollments/:numero_libreta/:cod_mat', async (req, res) => {
+async function deleteEnrollment(req: express.Request, res: express.Response, pool: Pool) {
   try {
     const { numero_libreta, cod_mat } = req.params;
     const result = await pool.query('DELETE FROM enrollments WHERE numero_libreta = $1 AND cod_mat = $2 RETURNING *', [numero_libreta, cod_mat]);
@@ -38,4 +41,4 @@ app.delete('/api/enrollments/:numero_libreta/:cod_mat', async (req, res) => {
     console.error('Error deleting enrollment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};

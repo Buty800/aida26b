@@ -1,4 +1,7 @@
-app.post('/api/students', async (req, res) => {
+import { Pool } from "pg";
+import express from 'express';
+
+async function insertStudent(req: express.Request, res: express.Response, pool: Pool) {
   try {
     const { numero_libreta, dni, first_name, last_name, email, enrollment_date, status } = req.body;
     const result = await pool.query(
@@ -10,9 +13,9 @@ app.post('/api/students', async (req, res) => {
     console.error('Error creating student:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.post('/api/subjects', async (req, res) => {
+async function insertSubject(req: express.Request, res: express.Response, pool: Pool) {
   try {
     const { cod_mat, name, description, credits, department } = req.body;
     const result = await pool.query(
@@ -24,9 +27,9 @@ app.post('/api/subjects', async (req, res) => {
     console.error('Error creating subject:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.post('/api/enrollments', async (req, res) => {
+async function insertEnrollment(req: express.Request, res: express.Response, pool: Pool) {
   try {
     const { numero_libreta, cod_mat, enrollment_date, grade, status } = req.body;
     const result = await pool.query(
@@ -38,4 +41,4 @@ app.post('/api/enrollments', async (req, res) => {
     console.error('Error creating enrollment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};

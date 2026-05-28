@@ -1,4 +1,7 @@
-app.get('/api/students', async (req, res) => {
+import { Pool } from "pg";
+import express from 'express';
+
+async function fetchStudentsTable(req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const result = await pool.query('SELECT * FROM students ORDER BY numero_libreta');
     res.json(result.rows);
@@ -6,9 +9,9 @@ app.get('/api/students', async (req, res) => {
     console.error('Error fetching students:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.get('/api/students/:numero_libreta', async (req, res) => {
+async function fetchStudent(req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const { numero_libreta } = req.params;
     const result = await pool.query('SELECT * FROM students WHERE numero_libreta = $1', [numero_libreta]);
@@ -20,9 +23,9 @@ app.get('/api/students/:numero_libreta', async (req, res) => {
     console.error('Error fetching student:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.get('/api/subjects', async (req, res) => {
+async function fetchSubjectsTable(req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const result = await pool.query('SELECT * FROM subjects ORDER BY cod_mat');
     res.json(result.rows);
@@ -30,9 +33,9 @@ app.get('/api/subjects', async (req, res) => {
     console.error('Error fetching subjects:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.get('/api/subjects/:cod_mat', async (req, res) => {
+async function fetchSubject (req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const { cod_mat } = req.params;
     const result = await pool.query('SELECT * FROM subjects WHERE cod_mat = $1', [cod_mat]);
@@ -44,9 +47,9 @@ app.get('/api/subjects/:cod_mat', async (req, res) => {
     console.error('Error fetching subject:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.get('/api/enrollments', async (req, res) => {
+async function fetchEnrollmentsTable(req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const result = await pool.query(`
       SELECT e.*, s.first_name, s.last_name, sub.name as subject_name
@@ -60,9 +63,9 @@ app.get('/api/enrollments', async (req, res) => {
     console.error('Error fetching enrollments:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.get('/api/enrollments/:numero_libreta/:cod_mat', async (req, res) => {
+async function fetchEnrollment(req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const { numero_libreta, cod_mat } = req.params;
     const result = await pool.query('SELECT * FROM enrollments WHERE numero_libreta = $1 AND cod_mat = $2', [numero_libreta, cod_mat]);
@@ -74,4 +77,4 @@ app.get('/api/enrollments/:numero_libreta/:cod_mat', async (req, res) => {
     console.error('Error fetching enrollment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};

@@ -1,4 +1,7 @@
-app.put('/api/students/:numero_libreta', async (req, res) => {
+import { Pool } from "pg";
+import express from 'express';
+
+async function updateStudent(req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const { numero_libreta } = req.params;
     const { dni, first_name, last_name, email, enrollment_date, status } = req.body;
@@ -14,9 +17,9 @@ app.put('/api/students/:numero_libreta', async (req, res) => {
     console.error('Error updating student:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.put('/api/subjects/:cod_mat', async (req, res) => {
+async function updateSubject(req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const { cod_mat } = req.params;
     const { name, description, credits, department } = req.body;
@@ -32,9 +35,9 @@ app.put('/api/subjects/:cod_mat', async (req, res) => {
     console.error('Error updating subject:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
 
-app.put('/api/enrollments/:numero_libreta/:cod_mat', async (req, res) => {
+async function updateEnrollment(req: express.Request, res: express.Response, pool: Pool)  {
   try {
     const { numero_libreta, cod_mat } = req.params;
     const { enrollment_date, grade, status } = req.body;
@@ -50,4 +53,4 @@ app.put('/api/enrollments/:numero_libreta/:cod_mat', async (req, res) => {
     console.error('Error updating enrollment:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+};
