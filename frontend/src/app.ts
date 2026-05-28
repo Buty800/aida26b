@@ -2,6 +2,7 @@
 // Code and comments in English
 import {structure} from './ssot/structure.js';
 import {TypeMap, MyTypeNames, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap} from './types/types.js';
+import {getPkFields} from './utils/utils.js';
 
 const API_BASE = '/api';
 
@@ -183,10 +184,6 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
 
 addRecordBtn.addEventListener('click', () => showAnyForm(activeTableKey));
 
-function getPkFields(tableKey: TableKey): string[] {
-  const tableConfig = structure.tables[tableKey];
-  return Array.isArray(tableConfig.pk) ? tableConfig.pk : [tableConfig.pk];
-}
 
 function getFieldElementId(tableKey: TableKey, fieldName: string): string {
   return `${tableKey}-${fieldName}`;
