@@ -42,3 +42,5 @@ async function deleteEnrollment(req: express.Request, res: express.Response, poo
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export {deleteStudent, deleteSubject, deleteEnrollment};

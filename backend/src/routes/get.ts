@@ -78,3 +78,5 @@ async function fetchEnrollment(req: express.Request, res: express.Response, pool
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export {fetchStudentsTable, fetchSubjectsTable, fetchEnrollmentsTable, fetchStudent, fetchSubject, fetchEnrollment};

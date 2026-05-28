@@ -42,3 +42,5 @@ async function insertEnrollment(req: express.Request, res: express.Response, poo
     res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+export {insertStudent, insertSubject, insertEnrollment};
