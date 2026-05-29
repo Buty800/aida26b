@@ -11,10 +11,19 @@ async function fetchStudentsTable(req: express.Request, res: express.Response, p
   }
 };
 
+async function getStudentsHandler(req: express.Request, res: express.Response, pool: Pool) {
+  if (Object.values(req.query).length === 0){
+    fetchStudentsTable(req, res, pool);
+  }
+  else{
+    fetchStudent(req, res, pool);
+  }
+}
+
 async function fetchStudent(req: express.Request, res: express.Response, pool: Pool)  {
   try {
-    const { numero_libreta } = req.params;
-    const result = await pool.query('SELECT * FROM students WHERE numero_libreta = $1', [numero_libreta]);
+    const pksValues          = Object.values(req.query) as any[];
+    const result = await pool.query('SELECT * FROM students WHERE numero_libreta = $1', pksValues);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Student not found' });
     }
@@ -35,10 +44,20 @@ async function fetchSubjectsTable(req: express.Request, res: express.Response, p
   }
 };
 
+async function getSubjectsHandler(req: express.Request, res: express.Response, pool: Pool) {
+  if (Object.values(req.query).length === 0){
+    fetchSubjectsTable(req, res, pool);
+  }
+  else{
+    fetchSubject(req, res, pool);
+  }
+}
+
+
 async function fetchSubject (req: express.Request, res: express.Response, pool: Pool)  {
   try {
-    const { cod_mat } = req.params;
-    const result = await pool.query('SELECT * FROM subjects WHERE cod_mat = $1', [cod_mat]);
+    const pksValues          = Object.values(req.query) as any[];
+    const result = await pool.query('SELECT * FROM subjects WHERE cod_mat = $1', pksValues);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Subject not found' });
     }
@@ -65,10 +84,19 @@ async function fetchEnrollmentsTable(req: express.Request, res: express.Response
   }
 };
 
+async function getEnrollmentsHandler(req: express.Request, res: express.Response, pool: Pool) {
+  if (Object.values(req.query).length === 0){
+    fetchEnrollmentsTable(req, res, pool);
+  }
+  else{
+    fetchEnrollment(req, res, pool);
+  }
+}
+
 async function fetchEnrollment(req: express.Request, res: express.Response, pool: Pool)  {
   try {
-    const { numero_libreta, cod_mat } = req.params;
-    const result = await pool.query('SELECT * FROM enrollments WHERE numero_libreta = $1 AND cod_mat = $2', [numero_libreta, cod_mat]);
+    const pksValues          = Object.values(req.query) as any[];
+    const result = await pool.query('SELECT * FROM enrollments WHERE numero_libreta = $1 AND cod_mat = $2', pksValues);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Enrollment not found' });
     }
@@ -79,4 +107,4 @@ async function fetchEnrollment(req: express.Request, res: express.Response, pool
   }
 };
 
-export {fetchStudentsTable, fetchSubjectsTable, fetchEnrollmentsTable, fetchStudent, fetchSubject, fetchEnrollment};
+export {getStudentsHandler, getSubjectsHandler, getEnrollmentsHandler};
