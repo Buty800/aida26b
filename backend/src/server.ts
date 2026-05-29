@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { getStudentsHandler, getSubjectsHandler, getEnrollmentsHandler } from './routes/get';
 import { putHandler } from './routes/put';
-import { insertStudent, insertSubject, insertEnrollment } from './routes/post';
+import { postHandler } from './routes/post';
 import { deleteHandler } from './routes/delete';
 
 
@@ -32,7 +32,7 @@ app.use(express.json());
 // Student routes
 app.get('/api/students', async (req, res) => getStudentsHandler(req, res, pool));
 
-app.post('/api/students', async (req, res) => insertStudent(req, res, pool));
+app.post('/api/:tableName', async (req, res) => postHandler(req, res, pool));
 
 app.put('/api/:tableName', async (req, res) => putHandler(req, res, pool));
 
@@ -41,12 +41,8 @@ app.delete('/api/:tableName', async (req, res) => deleteHandler(req, res, pool))
 // Subjects routes
 app.get('/api/subjects', async (req, res) => getSubjectsHandler(req, res, pool));
 
-app.post('/api/subjects', async (req, res) => insertSubject(req, res, pool));
-
 // Enrollments routes
 app.get('/api/enrollments', async (req, res) => getEnrollmentsHandler(req, res, pool));
-
-app.post('/api/enrollments', async (req, res) => insertEnrollment(req, res, pool));
 
 // Serve static files from frontend dist
 app.use(express.static(path.join(__dirname, '../../frontend/dist')));

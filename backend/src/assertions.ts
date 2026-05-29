@@ -48,4 +48,32 @@ function assertValidDeleteInstance(tableName: string, res: express.Response, pkF
   return true;
 }
 
-export { assertValidDeleteInstance, assertValidPutInstance };
+function assertValidPostInstance(tableName: string, res: express.Response, fieldsToModify: string[], pkFieldNames: string[], pkValues: any[], newValues: any[], entityName: string){
+  if (!isValidTable(tableName as TableKey)){
+    sendNotFoundMessage(res, `Invalid table`);
+    return false;
+  }
+  if (!notTryingToModifyDerivableValue(fieldsToModify, getNotDerivableFields(tableName as TableKey))){
+    sendInvalidInstanceMessage(res, `Cant modify derivable fields`);
+    return false;
+  }
+  if (incorrectAmountOfPKParameters(pkValues, tableName)){
+    sendInvalidInstanceMessage(res, `Insufficient amount of fields to identify a/an ${entityName}`);
+    return false;
+  }
+  if (invalidFieldNames(tableName as TableKey, fieldsToModify)){
+    sendInvalidInstanceMessage(res, `Invalid fields to modify a/an ${entityName}`);
+    return false;
+  }
+  if (invalidPKFieldNames(tableName as TableKey, pkFieldNames)){
+    sendInvalidInstanceMessage(res, `Invalid fields to identify a/an ${entityName}`);
+    return false;
+  }
+  if (requiredFieldsEnoughValuesForRequiredFields(tableName as TableKey, newValues.length)){
+    sendInvalidInstanceMessage(res, `Need to provide values for, at least, all required ${entityName} fields`);
+    return false;
+  }
+  return true;
+}
+
+export { assertValidDeleteInstance, assertValidPutInstance, assertValidPostInstance };

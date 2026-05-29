@@ -35,4 +35,14 @@ function getRequiredFields(tableName: TableKey){
   return Object.entries(tableColumns).filter(([fieldName, column]) => column.required);
 }
 
-export { getEntityName, tryQuery, columnNamesEqualsNumber, getNotDerivableFields, getRequiredFields };
+function formatTableColumnsForQuery(fieldsNames: string[], from: number = 1): string[]{
+  let tupleWithReplaceParameters = '';
+  for (let columnsCount = from; columnsCount <= fieldsNames.length; columnsCount++){
+    tupleWithReplaceParameters += `$${columnsCount} `;
+  }  
+  tupleWithReplaceParameters = '(' + tupleWithReplaceParameters.split(' ').join(',').slice(0,-1) + ')';
+  let tupleContent: string = '(' + fieldsNames.join(',') + ')';
+  return [tupleContent, tupleWithReplaceParameters];
+}
+
+export { getEntityName, tryQuery, columnNamesEqualsNumber, getNotDerivableFields, getRequiredFields, formatTableColumnsForQuery };

@@ -1,46 +1,25 @@
-import { Pool } from "pg";
 import express from 'express';
+import { assertValidPostInstance } from "../assertions";
+import { getEntityName, getNotDerivableFields, tryQuery, formatTableColumnsForQuery } from "../helpers";
+import { sendSuccessOperationMessage, sendErrorMessage } from "../status_messages";
+import { TableKey } from "../../../shared/src/types/types";
+import { Pool } from "pg";
 
-async function insertStudent(req: express.Request, res: express.Response, pool: Pool) {
-  try {
-    const { numero_libreta, dni, first_name, last_name, email, enrollment_date, status } = req.body;
-    const result = await pool.query(
-      'INSERT INTO students (numero_libreta, dni, first_name, last_name, email, enrollment_date, status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [numero_libreta, dni, first_name, last_name, email, enrollment_date, status]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error creating student:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
 
-async function insertSubject(req: express.Request, res: express.Response, pool: Pool) {
-  try {
-    const { cod_mat, name, description, credits, department } = req.body;
-    const result = await pool.query(
-      'INSERT INTO subjects (cod_mat, name, description, credits, department) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [cod_mat, name, description, credits, department]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error creating subject:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-async function insertEnrollment(req: express.Request, res: express.Response, pool: Pool) {
-  try {
-    const { numero_libreta, cod_mat, enrollment_date, grade, status } = req.body;
-    const result = await pool.query(
-      'INSERT INTO enrollments (numero_libreta, cod_mat, enrollment_date, grade, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [numero_libreta, cod_mat, enrollment_date, grade, status]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error('Error creating enrollment:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-};
-
-export {insertStudent, insertSubject, insertEnrollment};
+export async function postHandler(req: express.Request, res: express.Response, pool: Pool) {
+    const tableName: string              = req.params.tableName;
+    const entityName: string           = getEntityName(tableName as TableKey);
+    const valuesToInsert: string[]     = Object.values(req.body);  
+    const fieldsToModify: string[]     = Object.keys(req.body);
+    const notDerivableFields: string[] = getNotDerivableFields(tableName as TableKey);
+    
+    if (assertValidPostInstance(tableName, res, fieldsToModify, Object.keys(req.query), Object.values(req.query), valuesToInsert, entityName)){
+      const [fieldNamesTuples, parametersNumbersTuple] = formatTableColumnsForQuery(notDerivableFields);
+      const query: string = `INSERT INTO ${tableName} ${fieldNamesTuples} VALUES ${parametersNumbersTuple} RETURNING *`; 
+      const queryResponse = await tryQuery(pool, query, valuesToInsert);
+      if (!queryResponse.success){
+        return sendErrorMessage(res, queryResponse.message);
+      }
+      return sendSuccessOperationMessage(res, entityName, queryResponse.data.rows[0], 'created', 201);
+    } 
+}
