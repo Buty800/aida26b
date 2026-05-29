@@ -8,14 +8,6 @@ import { putHandler    } from './routes/put';
 import { postHandler   } from './routes/post';
 import { deleteHandler } from './routes/delete';
 
-
-
-// Load environment variables
-dotenv.config();
-
-const app = express();
-const port = process.env.PORT || 3000;
-
 // Database connection
 const pool = new Pool({
   host: process.env.DB_HOST,
@@ -25,26 +17,34 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
 });
 
-// Middleware
-app.use(cors());
-app.use(express.json());
+export function createAppWithPoolAndENV(pool: Pool, pathToEnv: string){
+  // Load environment variables
+  dotenv.config({path: pathToEnv});
 
-app.get('/api/:tableName', async (req, res) => getHandler(req, res, pool));
+  const app = express();
+  const port = process.env.PORT || 3000;
 
-app.post('/api/:tableName', async (req, res) => postHandler(req, res, pool));
+  // Middleware
+  app.use(cors());
+  app.use(express.json());
 
-app.put('/api/:tableName', async (req, res) => putHandler(req, res, pool));
+  app.get('/api/:tableName', async (req, res) => getHandler(req, res, pool));
 
-app.delete('/api/:tableName', async (req, res) => deleteHandler(req, res, pool));
+  app.post('/api/:tableName', async (req, res) => postHandler(req, res, pool));
 
-// Serve static files from frontend dist
-app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+  app.put('/api/:tableName', async (req, res) => putHandler(req, res, pool));
 
-// Catch-all handler: send back index.html for any non-API routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
-});
+  app.delete('/api/:tableName', async (req, res) => deleteHandler(req, res, pool));
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+  // Serve static files from frontend dist
+  app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+
+  // Catch-all handler: send back index.html for any non-API routes
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../../frontend/dist/index.html'));
+  });
+
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}
