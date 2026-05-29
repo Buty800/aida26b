@@ -41,7 +41,7 @@ export const structure = {
           numero_libreta: { type: 'string', label: 'Número de Libreta / Student ID:', required: true, readonlyOnEdit: true },
           student_name: { type: 'string', label: 'Nombre del Alumno / Student Name:', editable: false, derivable: {originTable: 'students', sqlGenerationStatement: `entityName.first_name || ' ' || entityName.last_name`} },
           cod_mat: { type: 'string', label: 'Código de Materia / Subject Code:', required: true, readonlyOnEdit: true },
-          subject_name: { type: 'string', label: 'Nombre de Materia / Subject Name:', editable: false, derivable: {originTable: 'students', sqlGenerationStatement: `entityName.first_name || ' ' || entityName.last_name`} },
+          subject_name: { type: 'string', label: 'Nombre de Materia / Subject Name:', editable: false, derivable: {originTable: 'subjects', sqlGenerationStatement: `entityName.name`} },
           enrollment_date: { type: 'string', label: 'Fecha de Inscripción / Enrollment Date:', input: 'date', required: true },
           grade: { type: 'number', label: 'Nota / Grade:', input: 'number', nullable: true },
           status: { type: 'string', label: 'Estado / Status:', input: 'select', options: [
@@ -52,7 +52,8 @@ export const structure = {
         }
       ,
         title: 'Inscripciones / Enrollments',
-        addButtonLabel: 'Agregar Inscripción / Add Enrollment'
+        addButtonLabel: 'Agregar Inscripción / Add Enrollment',
+        referencedTables: ['students', 'subjects']
       } satisfies TableStructure
   },
   menu: {

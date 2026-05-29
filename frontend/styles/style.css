@@ -231,3 +231,35 @@ select:focus {
     gap: 10px;
     margin-top: 20px;
 }
+
+/* Error messages dialog */
+.dialogErrorMessage{
+    background-color: #dc3546;
+    color: white;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.dialogErrorMessage button{
+    background-color: #007bff;
+    color: white;
+    border-radius: 20px;   
+}
+
+/* Success output */
+.successOutputInfoContainer {
+    border-radius: 20px;   
+    background-color: #4ccf6ac9;
+}
+
+p[class="successOutputInfo"]{
+    color: white;
+    font-weight: bold;
+    padding: 5px 10px;
+}
+
+.invisible{
+    display: none;
+}

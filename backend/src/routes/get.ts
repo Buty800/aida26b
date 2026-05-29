@@ -1,10 +1,10 @@
-import { getEntityName, getDerivableFields, getReferencedRelations, tryQuery, columnNamesEqualsNumber } from "../helpers";
-import { sendSuccessOperationMessage, sendNotFoundMessage, sendErrorMessage} from "../status_messages";
-import { TableKey, ColumnDef, TableStructure, Response} from "../../../shared/src/types/types";
 import { structure } from "../../../shared/src/ssot/structure";
+import express from 'express';
+import {assertValidGetInstance} from "../assertions";
+import {getEntityName, getDerivableFields, getReferencedRelations, tryQuery, columnNamesEqualsNumber, } from "../helpers";
 import { getPkFields } from "../../../shared/src/utils/utils";
-import { assertValidGetInstance } from "../assertions";
-import   express from 'express';
+import {sendSuccessOperationMessage, sendNotFoundMessage, sendErrorMessage} from "../status_messages";
+import {TableKey, ColumnDef, TableStructure, Response} from "../../../shared/src/types/types";
 import { Pool } from "pg";
 
 export async function getHandler(req: express.Request, res: express.Response, pool: Pool) {
