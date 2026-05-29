@@ -24,6 +24,7 @@ type ColumnDef = {
   editable?: boolean;
   readonlyOnEdit?: boolean;
   nullable?: boolean;
+  derivable?: boolean;
 }
 
 type TableStructure = {

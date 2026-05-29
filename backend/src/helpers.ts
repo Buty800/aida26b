@@ -1,6 +1,6 @@
-import type { TableKey, Response }  from '../../shared/src/types/types';
-import type { Pool }      from 'pg';
+import type { TableKey, Response, ColumnDef }  from '../../shared/src/types/types';
 import      { structure } from '../../shared/src/ssot/structure';
+import type { Pool }      from 'pg';
 
 function getEntityName(table: TableKey){
   return structure.tables[table].uiName;
@@ -24,4 +24,15 @@ function columnNamesEqualsNumber(columnsNames: string[], from: number = 1, separ
   return res.slice(0, -separator.length);
 }
 
-export { getEntityName, tryQuery, columnNamesEqualsNumber };
+function getNotDerivableFields(table: TableKey): string[]{
+  const columns: [string, ColumnDef][] = Object.entries(structure.tables[table].columns as Record<string, ColumnDef>);
+  const notDerivableEntries = columns.filter(([fieldName, columnDef]) => !columnDef.derivable);
+  return notDerivableEntries.map(([fieldName, column]) => fieldName);
+}
+
+function getRequiredFields(tableName: TableKey){
+  const tableColumns: Record<string, ColumnDef> = structure.tables[tableName].columns;
+  return Object.entries(tableColumns).filter(([fieldName, column]) => column.required);
+}
+
+export { getEntityName, tryQuery, columnNamesEqualsNumber, getNotDerivableFields, getRequiredFields };

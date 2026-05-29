@@ -4,7 +4,7 @@ import { Pool } from 'pg';
 import dotenv from 'dotenv';
 import path from 'path';
 import { getStudentsHandler, getSubjectsHandler, getEnrollmentsHandler } from './routes/get';
-import { updateStudent, updateSubject, updateEnrollment } from './routes/put';
+import { putHandler } from './routes/put';
 import { insertStudent, insertSubject, insertEnrollment } from './routes/post';
 import { deleteHandler } from './routes/delete';
 
@@ -34,7 +34,7 @@ app.get('/api/students', async (req, res) => getStudentsHandler(req, res, pool))
 
 app.post('/api/students', async (req, res) => insertStudent(req, res, pool));
 
-app.put('/api/students', async (req, res) => updateStudent(req, res, pool));
+app.put('/api/:tableName', async (req, res) => putHandler(req, res, pool));
 
 app.delete('/api/:tableName', async (req, res) => deleteHandler(req, res, pool));
 
@@ -43,14 +43,10 @@ app.get('/api/subjects', async (req, res) => getSubjectsHandler(req, res, pool))
 
 app.post('/api/subjects', async (req, res) => insertSubject(req, res, pool));
 
-app.put('/api/subjects', async (req, res) => updateSubject(req, res, pool));
-
 // Enrollments routes
 app.get('/api/enrollments', async (req, res) => getEnrollmentsHandler(req, res, pool));
 
 app.post('/api/enrollments', async (req, res) => insertEnrollment(req, res, pool));
-
-app.put('/api/enrollments', async (req, res) => updateEnrollment(req, res, pool));
 
 // Serve static files from frontend dist
 app.use(express.static(path.join(__dirname, '../../frontend/dist')));
