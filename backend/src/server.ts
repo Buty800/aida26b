@@ -244,6 +244,8 @@ app.delete('/api/enrollments/:numero_libreta/:cod_mat', async (req, res) => {
 
 // Serve static files from frontend dist
 app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+// Serve static files from frontend/styles at /styles
+app.use('/styles', express.static(path.join(__dirname, '../../frontend/styles')));
 
 // Catch-all handler: send back index.html for any non-API routes
 app.get('*', (req, res) => {
