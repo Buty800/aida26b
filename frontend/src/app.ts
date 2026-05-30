@@ -302,8 +302,8 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
   });
 }
 
-
-addRecordBtn.addEventListener('click', () => showAnyForm(activeTableKey));
+//Form Logic
+addRecordBtn.addEventListener('click', () => showAnyForm(activeTableKey, { onSaved: loadTableData }));
 
 function getPkFields(tableKey: TableKey): string[] {
   const tableConfig = structure.tables[tableKey];
@@ -313,7 +313,6 @@ function getPkFields(tableKey: TableKey): string[] {
 function getFieldElementId(tableKey: TableKey, fieldName: string): string {
   return `${tableKey}-${fieldName}`;
 }
-
 
 function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof TableRecordMap[K] & string, column: ColumnDef, record?: Partial<TableRecordMap[K]>, isEdit = false): HTMLElement {
   const id = getFieldElementId(tableKey, fieldName);
@@ -344,11 +343,11 @@ function collectFormData<K extends TableKey>(tableKey: K): Partial<TableRecordMa
       const rawValue = element?.value ?? '';
 
       if (column.type === 'number') {
-        if (rawValue === '') {
-          payload[fieldName as keyof TableRecordMap[K]] = (column.nullable ? null : 0) as TableRecordMap[K][keyof TableRecordMap[K]];
-        } else {
-          payload[fieldName as keyof TableRecordMap[K]] = Number(rawValue) as TableRecordMap[K][keyof TableRecordMap[K]];
-        }
+        payload[fieldName as keyof TableRecordMap[K]] = (rawValue === ''
+          ? column.nullable
+            ? null
+            : 0
+          : Number(rawValue)) as TableRecordMap[K][keyof TableRecordMap[K]];
         return;
       }
 
@@ -358,16 +357,23 @@ function collectFormData<K extends TableKey>(tableKey: K): Partial<TableRecordMa
   return payload;
 }
 
-function getRecordPath(recordValues: string[]): string {
+export function getRecordPath(recordValues: string[]): string {
   return `/${recordValues.map((value) => encodeURIComponent(value)).join('/')}`;
 }
 
-function hideAnyForm(): void {
+export function hideAnyForm(): void {
   formContainer.style.display = 'none';
   formContainer.innerHTML = '';
 }
 
-async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<TableRecordMap[K]>): Promise<void> {
+export async function showAnyForm<K extends TableKey>(
+  tableKey: K,
+  options: {
+    record?: Partial<TableRecordMap[K]>;
+    onSaved: (tableKey: K) => void;
+  },
+): Promise<void> {
+  const { record, onSaved } = options;
   const tableConfig = structure.tables[tableKey];
   const isEdit = !!record;
   const formId = `${tableKey}-form`;
@@ -376,39 +382,41 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
     .filter(([, column]) => column.editable !== false)
     .map(([fieldName, column]) => renderFormField(tableKey, fieldName as keyof TableRecordMap[K] & string, column, record, isEdit));
 
-  // build form DOM
   formContainer.innerHTML = '';
   const form = document.createElement('form');
   form.id = formId;
+
   const h3 = document.createElement('h3');
-  h3.textContent = isEdit ? `Editar ${tableConfig.uiName} / Edit ${tableConfig.uiName}` : `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`;
+  h3.textContent = `${isEdit ? 'Editar' : 'Agregar'}`;
   form.appendChild(h3);
-  fields.forEach((f) => form.appendChild(f));
+  fields.forEach((field) => form.appendChild(field));
 
   const actionsDiv = document.createElement('div');
   actionsDiv.className = 'form-actions';
+
   const submitBtn = document.createElement('button');
   submitBtn.type = 'submit';
-  submitBtn.textContent = isEdit ? 'Actualizar / Update' : 'Agregar / Add';
+  submitBtn.textContent = isEdit ? 'Actualizar' : 'Agregar';
+
   const cancelBtn = document.createElement('button');
   cancelBtn.type = 'button';
   cancelBtn.className = 'cancel-btn';
-  cancelBtn.textContent = 'Cancelar / Cancel';
+  cancelBtn.textContent = 'Cancelar';
   cancelBtn.addEventListener('click', hideAnyForm);
+
   actionsDiv.appendChild(submitBtn);
   actionsDiv.appendChild(cancelBtn);
   form.appendChild(actionsDiv);
-
   formContainer.appendChild(form);
-  formContainer.style.display = 'block';
+  formContainer.style.display = 'flex';
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = collectFormData(tableKey);
-
+    const recordValues = record as Record<string, unknown> | undefined;
     const pkPath = isEdit
-        ? `/${getPkFields(tableKey)
-          .map((fieldName) => encodeURIComponent(String((payload as Record<string, unknown>)[fieldName] ?? (record as Record<string, unknown> | undefined)?.[fieldName] ?? '')))
+      ? `/${getPkFields(tableKey)
+          .map((fieldName) => encodeURIComponent(String((payload as Record<string, unknown>)[fieldName] ?? recordValues?.[fieldName] ?? '')))
           .join('/')}`
       : '';
 
@@ -419,9 +427,9 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
         body: JSON.stringify(payload),
       });
       hideAnyForm();
-      loadTableData(tableKey);
+      onSaved(tableKey);
     } catch (error) {
-      console.error(`Error saving ${tableConfig.uiName.toLowerCase()}:`, error);
+      console.error(`Error saving record`, error);
     }
   });
 }
@@ -441,7 +449,7 @@ window.editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[
   try {
     const response = await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`);
     const record = (await response.json()) as TableRecordMap[K];
-    showAnyForm(tableKey, record);
+    showAnyForm(tableKey, { record, onSaved: loadTableData });
   } catch (error) {
     console.error(`Error loading ${tableKey} for edit:`, error);
   }
