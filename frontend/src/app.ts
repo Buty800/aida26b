@@ -2,9 +2,10 @@
 // Code and comments in English
 
 const API_BASE = '/api';
+const storedLanguage = localStorage.getItem('language');
+let currentLanguage: Language = isLanguage(storedLanguage) ? storedLanguage : 'es';
 
-
-
+// Types
 type TypeMap = {
   string: string;
   number: number;
@@ -16,15 +17,14 @@ type MyTypeNames = keyof TypeMap;
 
 type ColumnDef = {
   type: MyTypeNames;
-  label?: string;
+  label?: LocalizedText
   input?: 'text' | 'email' | 'date' | 'number' | 'textarea' | 'select';
-  options?: Array<{ value: string; label: string }>;
+  options?: Array<{ value: string; label: LocalizedText }>;
   required?: boolean;
   editable?: boolean;
   readonlyOnEdit?: boolean;
   nullable?: boolean;
 }
-
 
 type RendererProps<K extends TableKey> = {
   id: string;
@@ -33,6 +33,7 @@ type RendererProps<K extends TableKey> = {
   record?: Partial<TableRecordMap[K]>;
   isEdit?: boolean;
 };
+
 type RendererFunc = <K extends TableKey>(props: RendererProps<K>) => HTMLElement;
 
 const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
@@ -56,10 +57,10 @@ const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
     const sel = document.createElement('select');
     sel.id = id;
     if (column.required) sel.required = true;
-    (column.options || []).forEach((opt: { value: string; label: string }) => {
+    (column.options || []).forEach((opt: { value: string; label: LocalizedText }) => {
       const o = document.createElement('option');
       o.value = opt.value;
-      o.textContent = opt.label;
+      o.textContent =  getLocalizedText(opt.label);
       if (String(record?.[fieldName] ?? '') === opt.value) o.selected = true;
       sel.appendChild(o);
     });
@@ -83,9 +84,9 @@ function mapInputToRenderer(input?: ColumnDef['input']): RendererKey {
 type TableStructure = {
   columns: Record<string, ColumnDef>
   pk: string | string[]
-  uiName: string
-  title?: string
-  addButtonLabel?: string
+  uiName: LocalizedText;
+  title?: LocalizedText;
+  addButtonLabel?: LocalizedText;
 }
 
 type InferType<FieldDefs extends Record<string, ColumnDef>> = {
@@ -96,88 +97,100 @@ const structure = {
   tables: {
     students: {
       columns:{
-        numero_libreta   :{type: 'string', label: "Número de Libreta / Student ID:", required: true, readonlyOnEdit: true},
-        dni              :{type: 'string', label: 'DNI / ID Number:', required: true},
-        first_name       :{type: 'string', label: 'Nombre / First Name:', required: true},
-        last_name        :{type: 'string', label: 'Apellido / Last Name:', required: true},
-        email            :{type: 'string', label: 'Email:', input: 'email'},
-        enrollment_date  :{type: 'string', label: 'Fecha de Inscripción / Enrollment Date:', input: 'date'},
-        status           :{type: 'string', label: 'Estado / Status:', input: 'select', options: [
-          { value: 'active', label: 'Activo / Active' },
-          { value: 'graduated', label: 'Graduado / Graduated' },
-          { value: 'interrupted', label: 'Interrumpido / Interrupted' },
+        numero_libreta   :{type: 'string', label: { es: 'Número de Libreta', en: 'Student ID' }, required: true, readonlyOnEdit: true},
+        dni              :{type: 'string', label: { es: 'DNI', en: 'ID Number' }, required: true},
+        first_name       :{type: 'string', label: { es: 'Nombre', en: 'First Name' }, required: true},
+        last_name        :{type: 'string', label: { es: 'Apellido', en: 'Last Name' }, required: true},
+        email            :{type: 'string', label: { es: 'Email', en: 'Email' }, input: 'email'},
+        enrollment_date  :{type: 'string', label: { es: 'Fecha de Inscripción', en: 'Enrollment Date' }, input: 'date'},
+        status           :{type: 'string', label: { es: 'Estado', en: 'Status' }, input: 'select', options: [
+          { value: 'active', label: { es: 'Activo', en: 'Active' } },
+          { value: 'graduated', label: { es: 'Graduado', en: 'Graduated' } },
+          { value: 'interrupted', label: { es: 'Interrumpido', en: 'Interrupted' } },
         ]},
       },
       pk: 'numero_libreta',
-      uiName: 'Student',
-      title: 'Alumnos / Students',
-      addButtonLabel: 'Agregar Alumno / Add Student'
+      uiName: { es: 'Alumno', en: 'Student' },
+      title: { es: 'Alumnos', en: 'Students' },
+      addButtonLabel: { es: 'Agregar Alumno', en: 'Add Student' }
     } satisfies TableStructure,
     subjects: {
       columns:{
-        cod_mat     :{type: 'string', label: 'Código / Code:', required: true, readonlyOnEdit: true},
-        name        :{type: 'string', label: 'Nombre / Name:', required: true},
-        description :{type: 'string', label: 'Descripción / Description:', input: 'textarea'},
-        credits     :{type: 'number', label: 'Créditos / Credits:', input: 'number', nullable: false},
-        department  :{type: 'string', label: 'Departamento / Department:'},
+        cod_mat     :{type: 'string', label: { es: 'Código', en: 'Code' }, required: true, readonlyOnEdit: true},
+        name        :{type: 'string', label: { es: 'Nombre', en: 'Name' }, required: true},
+        description :{type: 'string', label: { es: 'Descripción', en: 'Description' }, input: 'textarea'},
+        credits     :{type: 'number', label: { es: 'Créditos', en: 'Credits' }, input: 'number', nullable: false},
+        department  :{type: 'string', label: { es: 'Departamento', en: 'Department' }},
       },
       pk: 'cod_mat',
-      uiName: 'Subject',
-      title: 'Materias / Subjects',
-      addButtonLabel: 'Agregar Materia / Add Subject'
+      uiName: { es: 'Materia', en: 'Subject' },
+      title: { es: 'Materias', en: 'Subjects' },
+      addButtonLabel: { es: 'Agregar Materia', en: 'Add Subject' }
     } satisfies TableStructure,
     enrollments: {
         pk: ['numero_libreta', 'cod_mat'],
-        uiName: 'Enrollment',
+        uiName: { es: 'Inscripción', en: 'Enrollment' },
         columns: {
-          numero_libreta: { type: 'string', label: 'Número de Libreta / Student ID:', required: true, readonlyOnEdit: true },
-          student_name: { type: 'string', label: 'Nombre del Alumno / Student Name:', editable: false },
-          cod_mat: { type: 'string', label: 'Código de Materia / Subject Code:', required: true, readonlyOnEdit: true },
-          subject_name: { type: 'string', label: 'Nombre de Materia / Subject Name:', editable: false },
-          enrollment_date: { type: 'string', label: 'Fecha de Inscripción / Enrollment Date:', input: 'date', required: true },
-          grade: { type: 'number', label: 'Nota / Grade:', input: 'number', nullable: true },
-          status: { type: 'string', label: 'Estado / Status:', input: 'select', options: [
-            { value: 'enrolled', label: 'Inscrito / Enrolled' },
-            { value: 'completed', label: 'Completado / Completed' },
-            { value: 'failed', label: 'Fallido / Failed' },
+          numero_libreta: { type: 'string', label: { es: 'Número de Libreta', en: 'Student ID' }, required: true, readonlyOnEdit: true },
+          student_name: { type: 'string', label: { es: 'Nombre del Alumno', en: 'Student Name' }, editable: false },
+          cod_mat: { type: 'string', label: { es: 'Código de Materia', en: 'Subject Code' }, required: true, readonlyOnEdit: true },
+          subject_name: { type: 'string', label: { es: 'Nombre de Materia', en: 'Subject Name' }, editable: false },
+          enrollment_date: { type: 'string', label: { es: 'Fecha de Inscripción', en: 'Enrollment Date' }, input: 'date', required: true },
+          grade: { type: 'number', label: { es: 'Nota', en: 'Grade' }, input: 'number', nullable: true },
+          status: { type: 'string', label: { es: 'Estado', en: 'Status' }, input: 'select', options: [
+            { value: 'enrolled', label: { es: 'Inscrito', en: 'Enrolled' } },
+            { value: 'completed', label: { es: 'Completado', en: 'Completed' } },
+            { value: 'failed', label: { es: 'Fallido', en: 'Failed' } },
           ] }
         }
       ,
-        title: 'Inscripciones / Enrollments',
-        addButtonLabel: 'Agregar Inscripción / Add Enrollment'
+        title: { es: 'Inscripciones', en: 'Enrollments' },
+        addButtonLabel: { es: 'Agregar Inscripción', en: 'Add Enrollment' }
       } satisfies TableStructure
   },
   menu: {
-    theme:{
-      title: "🌙",
-      handler: () => {
-        try {
-          const current = document.body.getAttribute("data-theme");
-          if (current === "dark") {
-            document.body.setAttribute("data-theme", "light");
-          } else {
-            document.body.setAttribute("data-theme", "dark");
-          }
-        } catch (err) {
-          console.error("Theme toggle failed:", err);
-          alert("Error al cambiar el tema / Error changing theme");
-        }
+    theme: {
+      title: { es: 'Tema', en: 'Theme' },
+      id: 'theme-picker',
+      handler: (value: string) => {
+        document.body.setAttribute('data-theme', value);
+        localStorage.setItem('theme', value);
       },
-      id: "theme-toggle"
+      options: [
+        { value: 'light', label: { es: 'Claro', en: 'Light' } },
+        { value: 'dark', label: { es: 'Oscuro', en: 'Dark' } }
+      ],
+      initial: () => localStorage.getItem('theme') || 'light'
     },
-    lenguage: {
-      title: "EN/ES",
-      handler: () => {
-        try {
-          alert("Funcionalidad de cambio de idioma no implementada / Language toggle not implemented");
-        } catch (err) {
-          console.error("Language toggle failed:", err);
-          alert("Error al cambiar el idioma / Error changing language");
+    language: {
+      title: { es: 'Idioma', en: 'Language' },
+      id: 'language-picker',
+      handler: (value: string) => {
+        setLanguage(value as Language);
+        showSection(activeTableKey);
+        if (menuContainer) {
+          menuContainer.innerHTML = '';
+          showMenu();
         }
+        const appTitleEl = document.getElementById('app-title');
+        if (appTitleEl) appTitleEl.textContent = getLocalizedText(structure.commonText.appTitle);
       },
-      id: "language-toggle"
+      options: [
+        { value: 'es', label: { es: 'Español', en: 'Spanish' } },
+        { value: 'en', label: { es: 'Inglés', en: 'English' } }
+      ],
+      initial: () => getLanguage()
     }
-  }
+  },
+  commonText:{
+    actions: { es: 'Acciones', en: 'Actions' },
+    add: { es: 'Agregar', en: 'Add' },
+    appTitle: { es: 'Sistema de Gestión Académica', en: 'Academic Management System' },
+    cancel: { es: 'Cancelar', en: 'Cancel' },
+    delete: { es: 'Eliminar', en: 'Delete' },
+    edit: { es: 'Editar', en: 'Edit' },
+    update: { es: 'Actualizar', en: 'Update' },
+  } satisfies Record<string, LocalizedText>
 }
 
 type TableKey = keyof typeof structure.tables;
@@ -205,7 +218,7 @@ for (const key of tableKeys) {
   const cfg = structure.tables[key];
   const btn = document.createElement('button');
   btn.id = `${key}-btn`;
-  btn.textContent = cfg.title ?? cfg.uiName;
+  btn.textContent = getLocalizedText(cfg.title) ?? getLocalizedText(cfg.uiName) ?? key;
   navContainer.appendChild(btn);
   tableNavButtons[key] = btn;
   btn.addEventListener('click', () => showSection(key));
@@ -221,8 +234,8 @@ function showSection(section: TableKey) {
   });
 
   const tableConfig = structure.tables[section];
-  viewTitle.textContent = tableConfig.title;
-  addRecordBtn.textContent = tableConfig.addButtonLabel || `Agregar ${tableConfig.uiName} / Add ${tableConfig.uiName}`;
+  viewTitle.textContent = getLocalizedText(tableConfig.title);
+  addRecordBtn.textContent = getLocalizedText(tableConfig.addButtonLabel) || `Agregar ${getLocalizedText(tableConfig.uiName)} / Add ${getLocalizedText(tableConfig.uiName) }`;
   hideAnyForm();
   loadTableData(section);
 }
@@ -248,12 +261,12 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
   const headerRow = document.createElement('tr');
   Object.values(tableStructure.columns).forEach((column) => {
     const th = document.createElement('th');
-    th.textContent = column.label;
+    th.textContent = getLocalizedText(column.label);
     headerRow.appendChild(th);
   });
 
   const actionsHeader = document.createElement('th');
-  actionsHeader.textContent = 'Acciones / Actions';
+  actionsHeader.textContent = getLocalizedText(structure.commonText.actions);
   headerRow.appendChild(actionsHeader);
   thead.appendChild(headerRow);
   
@@ -276,7 +289,7 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
 
     const editBtn = document.createElement('button');
     editBtn.className = 'edit-btn';
-    editBtn.textContent = 'Editar / Edit';
+    editBtn.textContent = getLocalizedText(structure.commonText.edit);
     editBtn.dataset.table = String(tableKey);
     editBtn.dataset.pk = JSON.stringify(pkFields.map((field) => String(record[field as keyof TableRecordMap[K]] ?? '')));
     editBtn.addEventListener('click', (e) => {
@@ -286,7 +299,7 @@ function renderAnyTable<K extends TableKey>(tableKey: K, records: TableRecordMap
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'delete-btn';
-    deleteBtn.textContent = 'Eliminar / Delete';
+    deleteBtn.textContent = getLocalizedText(structure.commonText.delete);
     deleteBtn.dataset.table = String(tableKey);
     deleteBtn.dataset.pk = editBtn.dataset.pk;
     deleteBtn.addEventListener('click', (e) => {
@@ -316,13 +329,12 @@ function getFieldElementId(tableKey: TableKey, fieldName: string): string {
 
 function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof TableRecordMap[K] & string, column: ColumnDef, record?: Partial<TableRecordMap[K]>, isEdit = false): HTMLElement {
   const id = getFieldElementId(tableKey, fieldName);
-  const labelText = column.label ?? '';
   const wrapper = document.createElement('div');
   wrapper.className = 'form-group';
 
   const labelEl = document.createElement('label');
   labelEl.htmlFor = id;
-  labelEl.textContent = labelText;
+  labelEl.textContent = getLocalizedText(column.label);
   wrapper.appendChild(labelEl);
   const rendererKey = mapInputToRenderer(column.input);
   const renderer = getRenderer<K>(rendererKey);
@@ -387,7 +399,7 @@ export async function showAnyForm<K extends TableKey>(
   form.id = formId;
 
   const h3 = document.createElement('h3');
-  h3.textContent = `${isEdit ? 'Editar' : 'Agregar'}`;
+  h3.textContent = `${isEdit ? getLocalizedText(structure.commonText.edit) : getLocalizedText(structure.commonText.add)} ${getLocalizedText(tableConfig.uiName)}`;;
   form.appendChild(h3);
   fields.forEach((field) => form.appendChild(field));
 
@@ -396,12 +408,12 @@ export async function showAnyForm<K extends TableKey>(
 
   const submitBtn = document.createElement('button');
   submitBtn.type = 'submit';
-  submitBtn.textContent = isEdit ? 'Actualizar' : 'Agregar';
+  submitBtn.textContent = isEdit ? getLocalizedText(structure.commonText.update) : getLocalizedText(structure.commonText.add);;
 
   const cancelBtn = document.createElement('button');
   cancelBtn.type = 'button';
   cancelBtn.className = 'cancel-btn';
-  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.textContent = getLocalizedText(structure.commonText.cancel);
   cancelBtn.addEventListener('click', hideAnyForm);
 
   actionsDiv.appendChild(submitBtn);
@@ -429,7 +441,7 @@ export async function showAnyForm<K extends TableKey>(
       hideAnyForm();
       onSaved(tableKey);
     } catch (error) {
-      console.error(`Error saving record`, error);
+      console.error(`Error saving ${getLocalizedText(tableConfig.uiName).toLowerCase()}:`, error);
     }
   });
 }
@@ -456,7 +468,7 @@ window.editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[
 };
 window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
   const tableConfig = structure.tables[tableKey];
-  if (confirm(`¿Está seguro de que desea eliminar este ${tableConfig.uiName.toLowerCase()}? / Are you sure you want to delete this ${tableConfig.uiName.toLowerCase()}?`)) {
+  if (confirm(`¿Está seguro de que desea eliminar este ${getLocalizedText(tableConfig.uiName).toLowerCase()}? / Are you sure you want to delete this ${getLocalizedText(tableConfig.uiName).toLowerCase()}?`)) {
     try {
       await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`, { method: 'DELETE' });
       loadTableData(tableKey);
@@ -466,20 +478,79 @@ window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: strin
   }
 };
 
+// Settings menu rendering and logic
+type Language = 'es' | 'en';
+type LocalizedText = Record<Language, string>;
+
 const renderAnyMenuOption = (key:string) => {
   const cfg = structure.menu[key as keyof typeof structure.menu];
-  const btn = document.createElement('button');
-  btn.id = cfg.id;
-  btn.textContent = cfg.title;
-  btn.addEventListener('click', cfg.handler);
-  menuContainer.appendChild(btn);
-}
+  if (!cfg.options) return;
+
+  const selectEl = document.createElement('select');
+  selectEl.id = cfg.id;
+  selectEl.classList.add('picker');
+
+  const initialValue =
+    typeof cfg.initial === 'function'
+      ? cfg.initial()
+      : cfg.initial;
+
+  cfg.options.forEach(opt => {
+    const optionEl = document.createElement('option');
+
+    optionEl.value = opt.value;
+    optionEl.textContent = getLocalizedText(opt.label);
+
+    if (opt.value === initialValue) {
+      optionEl.selected = true;
+    }
+
+    selectEl.appendChild(optionEl);
+  });
+
+  selectEl.classList.add('picker');
+  selectEl.addEventListener('change', (e) => {
+    cfg.handler((e.target as HTMLSelectElement).value);
+  });
+  
+  const wrapper = document.createElement('div');
+  wrapper.className = 'picker-wrapper';
+  const label = document.createElement('label');
+  label.htmlFor = cfg.id;
+  label.textContent = getLocalizedText(cfg.title);
+  wrapper.appendChild(label);
+  wrapper.appendChild(selectEl);
+  menuContainer.appendChild(wrapper);  
+};
 
 const showMenu = () => {
   menuKeys.forEach((key) => {renderAnyMenuOption(key)});
 };
 
-// Initialize
+function isLanguage(value: string | null): value is Language {
+  return value === 'es' || value === 'en';
+}
+
+export function getLanguage(): Language {
+  return currentLanguage;
+}
+
+export function setLanguage(language: Language): void {
+  currentLanguage = language;
+  localStorage.setItem('language', language);
+}
+
+export function getLocalizedText(text?: LocalizedText): string {
+  return text?.[currentLanguage] ?? '';
+}
+
+// Inicialización de tema y lenguaje
+const initialTheme = localStorage.getItem('theme') || 'light';
+document.body.setAttribute('data-theme', initialTheme);
+const appTitleEl = document.getElementById('app-title');
+if (appTitleEl) appTitleEl.textContent = getLocalizedText(structure.commonText.appTitle);
+
+// Renderizado inicial de menú y sección
 showSection(activeTableKey);
 showMenu();
 
