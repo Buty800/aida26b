@@ -159,75 +159,73 @@ button:hover {
     gap: 8px;
 }
 
+/* Form style */
 .edit-btn {
-    background-color: var(--success);
+    background-color: #28a745;
     color: white;
 }
 
 .delete-btn {
-    background-color: var(--danger);
+    background-color: #dc3545;
     color: white;
 }
 
 .add-btn {
-    background-color: var(--primary);
+    background-color: #007bff;
     color: white;
     margin-bottom: 20px;
 }
 
-.cancel-btn {
-    background-color: var(--secondary);
-    color: white;
-}
-
 form {
-    background-color: var(--surface-2);
-
+    background-color: #f8f9fa;
     padding: 20px;
-    border-radius: 12px;
-
+    border-radius: 8px;
     margin-bottom: 20px;
 }
 
 .form-group {
-    margin-bottom: 16px;
+    margin-bottom: 15px;
 }
 
 label {
     display: block;
-    margin-bottom: 6px;
-
+    margin-bottom: 5px;
     font-weight: bold;
-    color: var(--text);
 }
 
 input,
 select {
     width: 100%;
-
-    padding: 10px;
-
-    border: 1px solid var(--border);
-    border-radius: 8px;
-
-    background-color: var(--surface);
-    color: var(--text);
-
-    box-sizing: border-box;
-
-    transition:
-        border-color 0.2s ease,
-        background-color 0.3s ease;
-}
-
-input:focus,
-select:focus {
-    outline: none;
-    border-color: var(--primary);
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
 }
 
 .form-actions {
     display: flex;
     gap: 10px;
     margin-top: 20px;
+}
+
+.cancel-btn {
+    background-color: #6c757d;
+    color: white;
+}
+
+#record-form {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1000;
+}
+
+#record-form form {
+    width: min(520px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+    background-color: white;
+    margin: 0;
 }
