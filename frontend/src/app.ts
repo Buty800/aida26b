@@ -167,6 +167,7 @@ const structure = {
       id: 'language-picker',
       handler: (value: string) => {
         setLanguage(value as Language);
+        updateNavButtonsText();
         showSection(activeTableKey);
         if (menuContainer) {
           menuContainer.innerHTML = '';
@@ -225,6 +226,14 @@ for (const key of tableKeys) {
 }
 
 let activeTableKey: TableKey = tableKeys[0] as TableKey;
+
+function updateNavButtonsText(): void {
+  tableKeys.forEach((key) => {
+    const cfg = structure.tables[key];
+    const btn = tableNavButtons[key];
+    btn.textContent = getLocalizedText(cfg.title) ?? getLocalizedText(cfg.uiName) ?? key;
+  });
+}
 
 function showSection(section: TableKey) {
   activeTableKey = section;
