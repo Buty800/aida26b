@@ -282,14 +282,11 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
     e.preventDefault();
     const payload = collectFormData(tableKey);
 
-    const pkPath = isEdit
-        ? `/${getPkFields(tableKey)
-          .map((fieldName) => encodeURIComponent(String((payload as Record<string, unknown>)[fieldName] ?? (record as Record<string, unknown> | undefined)?.[fieldName] ?? '')))
-          .join('/')}`
-      : '';
+    const pkAndTheirValues = getPkFields(tableKey).map((pkFieldName) => [pkFieldName, String((payload as Record<string, unknown>)[pkFieldName])?? String((record as Record<string, unknown> | undefined)?.[pkFieldName]) ?? '']);
+    const queryParams = new URLSearchParams(pkAndTheirValues).toString();
 
     try {
-      await fetch(`${API_BASE}/${tableKey}${pkPath}`, {
+      await fetch(`${API_BASE}/${tableKey}?` + queryParams, {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -315,7 +312,8 @@ window.hideAnyForm = hideAnyForm;
 
 window.editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
   try {
-    const response = await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`);
+    const queryParams = new URLSearchParams(getPkFields(tableKey).map((pkFieldName, index) => [pkFieldName, pkValues[index]])).toString();
+    const response = await fetch(`${API_BASE}/${tableKey}?` + queryParams);
     const record = (await response.json()) as TableRecordMap[K];
     showAnyForm(tableKey, record);
   } catch (error) {
@@ -326,7 +324,8 @@ window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: strin
   const tableConfig = structure.tables[tableKey];
   if (confirm(`¿Está seguro de que desea eliminar este ${tableConfig.uiName.toLowerCase()}? / Are you sure you want to delete this ${tableConfig.uiName.toLowerCase()}?`)) {
     try {
-      await fetch(`${API_BASE}/${tableKey}${getRecordPath(pkValues)}`, { method: 'DELETE' });
+      const queryParams = new URLSearchParams(getPkFields(tableKey).map((pkFieldName, index) => [pkFieldName, pkValues[index]])).toString();
+      await fetch(`${API_BASE}/${tableKey}?` + queryParams, { method: 'DELETE' });
       loadTableData(tableKey);
     } catch (error) {
       console.error(`Error deleting ${tableKey}:`, error);
