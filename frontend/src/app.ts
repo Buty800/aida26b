@@ -32,7 +32,7 @@ const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
     const inp = document.createElement('input');
     inp.id = id;
     inp.type = column.input ?? (column.type === 'number' ? 'number' : 'text');
-    if (column.required) inp.required = true;
+    if (column.validator?.required) inp.required = true;
     if (isEdit && column.readonlyOnEdit) inp.readOnly = true;
     (inp as HTMLInputElement).value = toInputValue(column, record?.[fieldName]);
     return inp;
@@ -40,14 +40,14 @@ const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
   textarea<K extends TableKey>({ id, fieldName, column, record }: RendererProps<K>) {
     const ta = document.createElement('textarea');
     ta.id = id;
-    if (column.required) ta.required = true;
+    if (column.validator?.required) ta.required = true;
     (ta as HTMLTextAreaElement).value = String(record?.[fieldName] ?? '');
     return ta;
   },
   select<K extends TableKey>({ id, fieldName, column, record }: RendererProps<K>) {
     const sel = document.createElement('select');
     sel.id = id;
-    if (column.required) sel.required = true;
+    if (column.validator?.required) sel.required = true;
     (column.options || []).forEach((opt: { value: string; label: string }) => {
       const o = document.createElement('option');
       o.value = opt.value;
@@ -292,17 +292,31 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
     const queryParams = new URLSearchParams(pkAndTheirValues).toString();
 
     try {
-      await fetch(`${API_BASE}/${tableKey}?` + queryParams, {
+      const response = await fetch(`${API_BASE}/${tableKey}?` + queryParams, {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+      if (!response.ok) {
+        alert(await errorMessage(response)); // keep the form open so the user can correct the input
+        return;
+      }
       hideAnyForm();
       loadTableData(tableKey);
     } catch (error) {
       console.error(`Error saving ${tableConfig.uiName.toLowerCase()}:`, error);
+      alert('No se pudo conectar con el servidor / Could not reach the server');
     }
   });
+}
+
+// Pull the server's error message out of a failed response (the API replies with { error: '...' }).
+async function errorMessage(response: Response): Promise<string> {
+  try {
+    const body = await response.json();
+    if (body && typeof body.error === 'string') return body.error;
+  } catch { /* response body wasn't JSON */ }
+  return `Error ${response.status}`;
 }
 
 declare global {
@@ -320,10 +334,15 @@ window.editRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[
   try {
     const queryParams = new URLSearchParams(getPkFields(tableKey).map((pkFieldName, index) => [pkFieldName, pkValues[index]])).toString();
     const response = await fetch(`${API_BASE}/${tableKey}?` + queryParams);
+    if (!response.ok) {
+      alert(await errorMessage(response));
+      return;
+    }
     const record = (await response.json()) as TableRecordMap[K];
     showAnyForm(tableKey, record);
   } catch (error) {
     console.error(`Error loading ${tableKey} for edit:`, error);
+    alert('No se pudo conectar con el servidor / Could not reach the server');
   }
 };
 window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: string[]) => {
@@ -331,10 +350,15 @@ window.deleteRecord = async <K extends TableKey>(tableKey: K, ...pkValues: strin
   if (confirm(`¿Está seguro de que desea eliminar este ${tableConfig.uiName.toLowerCase()}? / Are you sure you want to delete this ${tableConfig.uiName.toLowerCase()}?`)) {
     try {
       const queryParams = new URLSearchParams(getPkFields(tableKey).map((pkFieldName, index) => [pkFieldName, pkValues[index]])).toString();
-      await fetch(`${API_BASE}/${tableKey}?` + queryParams, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE}/${tableKey}?` + queryParams, { method: 'DELETE' });
+      if (!response.ok) {
+        alert(await errorMessage(response));
+        return;
+      }
       loadTableData(tableKey);
     } catch (error) {
       console.error(`Error deleting ${tableKey}:`, error);
+      alert('No se pudo conectar con el servidor / Could not reach the server');
     }
   }
 };
