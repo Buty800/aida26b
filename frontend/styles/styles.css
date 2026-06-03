@@ -56,6 +56,7 @@ body {
 .container {
     max-width: 1200px;
     margin: 0 auto;
+    width: 100%;
 
     background-color: var(--surface);
 
@@ -63,6 +64,7 @@ body {
     border-radius: 12px;
 
     box-shadow: var(--shadow);
+    box-sizing: border-box;
 
     transition:
         background-color 0.3s ease,
@@ -112,11 +114,19 @@ h1 {
     background-color: var(--primary-hover);
 }
 
+/* Base table wrapper styling for robust overflow handling */
+.table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 20px;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 20px;
-
     background-color: var(--surface);
 }
 
@@ -299,4 +309,200 @@ textarea:focus {
 .picker:focus {
     border-color: var(--primary);
     box-shadow: 0 0 0 2px var(--primary-hover)33;
+}
+
+
+
+/* ===== RESPONSIVE DESIGN (below 900px) ===== */
+@media (max-width: 900px) {
+    body {
+        padding: 12px;
+    }
+
+    .container {
+        padding: 16px;
+        border-radius: 8px;
+        width: 100%;
+        box-sizing: border-box;
+        overflow-x: hidden; 
+    }
+
+    h1 {
+        font-size: 1.75rem;
+        margin-bottom: 18px;
+    }
+
+    .nav {
+        flex-direction: column;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+
+    .nav button {
+        width: 100%;
+        padding: 12px;
+        font-size: 1rem;
+    }
+
+    /* The wrapper that contains the scrollbar */
+    .table-wrapper {
+        margin: 16px 0;
+        width: 100%;
+        overflow-x: auto; /* Forces horizontal scrolling */
+        display: block;
+    }
+
+    table {
+        width: 100%;
+        min-width: 700px; /* Forces the table to stay wide so it scrolls */
+        border-collapse: collapse;
+        font-size: 0.9rem;
+    }
+
+    th,
+    td {
+        padding: 10px 8px;
+        white-space: nowrap; 
+    }
+
+    td.description,
+    td.name {
+        white-space: normal;
+        min-width: 120px;
+        max-width: 200px;
+    }
+
+    .actions {
+        flex-direction: column;
+        gap: 6px;
+        white-space: nowrap;
+    }
+
+    .actions button {
+        width: 100%;
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    form {
+        padding: 16px;
+    }
+
+    .form-group {
+        margin-bottom: 12px;
+    }
+
+    label {
+        font-size: 0.9rem;
+    }
+
+    input,
+    select,
+    textarea {
+        padding: 10px 8px;
+        font-size: 0.95rem;
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .form-actions {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .form-actions button {
+        width: 100%;
+        padding: 12px;
+        font-size: 1rem;
+    }
+
+    #record-form {
+        position: fixed;
+        inset: 0;
+        padding: 16px;
+        box-sizing: border-box;
+    }
+    
+    #record-form form {
+        width: 100%;
+        max-width: calc(100vw - 32px);
+        max-height: calc(100vh - 32px);
+        border-radius: 12px;
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    .picker-wrapper {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+        margin-bottom: 12px;
+    }
+
+    .picker-wrapper label {
+        margin-bottom: 2px;
+    }
+
+    .picker {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 1rem;
+        box-sizing: border-box;
+    }
+
+    .add-btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 1rem;
+        margin-bottom: 16px;
+    }
+
+    button,
+    .nav button,
+    .actions button,
+    .add-btn,
+    .cancel-btn,
+    .edit-btn,
+    .delete-btn {
+        min-height: 44px;
+    }
+}
+
+/* Medium-small devices (below 670px) */
+@media (max-width: 670px) {
+    body {
+        padding: 8px;
+    }
+
+    .container {
+        padding: 12px;
+    }
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    table {
+        min-width: 600px;
+    }
+}
+
+/* Small devices (below 480px) */
+@media (max-width: 480px) {
+    body {
+        padding: 6px;
+    }
+
+    .container {
+        padding: 10px;
+    }
+
+    h1 {
+        font-size: 1.35rem;
+        margin-bottom: 12px;
+    }
+
+    table {
+        min-width: 550px;
+    }
 }
