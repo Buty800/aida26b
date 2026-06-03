@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import express from 'express';
-import { parsePk, sendErrorsIfInvalid } from '../validation/validate';
+import { validateOnlyPk, sendErrorsIfInvalid } from '../validation/validate';
 import { getPkFields } from '../../../shared/src/utils/utils';
 import type { TableKey } from '../../../shared/src/types/types';
 
@@ -30,9 +30,9 @@ async function getStudentsHandler(req: express.Request, res: express.Response, p
 
 async function fetchStudent(req: express.Request, res: express.Response, pool: Pool)  {
   try {
-    const pk = parsePk('students', req.query as Record<string, unknown>);
+    const pk = validateOnlyPk('students', req.query);
     if (sendErrorsIfInvalid(res, pk)) return;
-    const result = await pool.query('SELECT * FROM students WHERE numero_libreta = $1', pk.data);
+    const result = await pool.query('SELECT * FROM students WHERE numero_libreta = $1', [pk.data.numero_libreta]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Student not found' });
     }
@@ -65,9 +65,9 @@ async function getSubjectsHandler(req: express.Request, res: express.Response, p
 
 async function fetchSubject (req: express.Request, res: express.Response, pool: Pool)  {
   try {
-    const pk = parsePk('subjects', req.query as Record<string, unknown>);
+    const pk = validateOnlyPk('subjects', req.query);
     if (sendErrorsIfInvalid(res, pk)) return;
-    const result = await pool.query('SELECT * FROM subjects WHERE cod_mat = $1', pk.data);
+    const result = await pool.query('SELECT * FROM subjects WHERE cod_mat = $1', [pk.data.cod_mat]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Subject not found' });
     }
@@ -105,9 +105,9 @@ async function getEnrollmentsHandler(req: express.Request, res: express.Response
 
 async function fetchEnrollment(req: express.Request, res: express.Response, pool: Pool)  {
   try {
-    const pk = parsePk('enrollments', req.query as Record<string, unknown>);
+    const pk = validateOnlyPk('enrollments', req.query);
     if (sendErrorsIfInvalid(res, pk)) return;
-    const result = await pool.query('SELECT * FROM enrollments WHERE numero_libreta = $1 AND cod_mat = $2', pk.data);
+    const result = await pool.query('SELECT * FROM enrollments WHERE numero_libreta = $1 AND cod_mat = $2', [pk.data.numero_libreta, pk.data.cod_mat]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Enrollment not found' });
     }

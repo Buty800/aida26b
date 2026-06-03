@@ -92,89 +92,62 @@ function checkValue(key: string, col: ColumnDef, value: unknown): string | undef
   return undefined;
 }
 
-function parseTable<T extends TableKey>(table: T, body: unknown, partial: boolean): ParseResult<T> {
-  const columns = structure.tables[table].columns as Record<string, ColumnDef>;
-  const pkFields = getPkFields(table);
-  const b = (body != null && typeof body === 'object' ? body : {}) as Record<string, unknown>;
-  const errors: string[] = [];
-  const data: Record<string, unknown> = {};
-
-  for (const [key, col] of Object.entries(columns)) {
-    if (col.editable === false) continue;          // display-only / joined column
-    if (partial && pkFields.includes(key)) continue; // PK supplied via query on update
-
-    const raw = b[key];
-
-    if (raw === null) {
-      if (col.nullable) { data[key] = null; continue; }
-      errors.push(`${key} is required`);
-      continue;
-    }
-
-    const isMissing = raw === undefined || (col.type === 'string' && raw === '');
-    if (isMissing) {
-      if (!col.required) continue;
-      errors.push(`${key} is required`);
-      continue;
-    }
-
-    const error = checkValue(key, col, raw);
-    if (error) { errors.push(error); continue; }
-
-    data[key] = normalizeValue(col, raw);
-  }
-
-  return errors.length > 0 ? { errors } : { data: data as TableRecordMap[T] };
-}
-
-export const parseInsert = <T extends TableKey>(table: T, body: unknown): ParseResult<T> =>
-  parseTable(table, body, false);
-
-// PK columns come from the query string on update, not the body.
-export const parseUpdate = <T extends TableKey>(table: T, body: unknown): ParseResult<T> =>
-  parseTable(table, body, true);
-
 function normalizeValue(col: ColumnDef, value: unknown): unknown {
   return col.normalize && typeof value === 'string'
     ? value.replace(getRegex(col.normalize.pattern), col.normalize.replacement)
     : value;
 }
 
-// Validate and normalize a single value (e.g. a primary key from the query string).
-function parseField<T extends TableKey>(
-  table: T,
-  column: keyof TableRecordMap[T] & string,
-  value: unknown,
-): { data: string } | { errors: string[] } {
-  const col = (structure.tables[table].columns as Record<string, ColumnDef>)[column];
-  if (!col) return { errors: [`${column} is not a valid field`] };
-
-  if (value === undefined || value === null || (col.type === 'string' && value === '')) {
-    return { errors: [`${column} is required`] };
-  }
-
-  const error = checkValue(column, col, value);
-  if (error) return { errors: [error] };
-
-  return { data: String(normalizeValue(col, value)) };
+// A table's columns minus the display-only (joined) ones.
+function editableColumns(table: TableKey): string[] {
+  return Object.entries(structure.tables[table].columns as Record<string, ColumnDef>)
+    .filter(([, col]) => col.editable !== false)
+    .map(([key]) => key);
 }
 
-// Validate a table's PK columns from a query object, returning them in declared PK order.
-export function parsePk<T extends TableKey>(
-  table: T,
-  query: Record<string, unknown>,
-): { data: string[] } | { errors: string[] } {
+// Core: validate a data object against `fields` — it must hold exactly those columns (nothing
+// unexpected, nothing missing) and every value must be valid. Values are normalized; an empty
+// optional field becomes null.
+function validate<T extends TableKey>(table: T, data: unknown, fields: string[]): ParseResult<T> {
+  const columns = structure.tables[table].columns as Record<string, ColumnDef>;
+  const obj = (data != null && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+  const allowed = new Set(fields);
   const errors: string[] = [];
-  const data: string[] = [];
+  const out: Record<string, unknown> = {};
 
-  for (const field of getPkFields(table)) {
-    const result = parseField(table, field as keyof TableRecordMap[T] & string, query[field]);
-    if ('errors' in result) { errors.push(...result.errors); continue; }
-    data.push(result.data);
+  // Too many: reject anything outside the expected set.
+  for (const key of Object.keys(obj)) {
+    if (!allowed.has(key)) errors.push(`${key} is not an allowed field`);
   }
 
-  return errors.length > 0 ? { errors } : { data };
+  for (const key of fields) {
+    const col = columns[key];
+    if (!col) { errors.push(`${key} is not a valid field`); continue; }
+    if (!(key in obj)) { errors.push(`${key} is required`); continue; } // too few
+
+    const raw = obj[key];
+    const empty = raw === null || (col.type === 'string' && raw === '');
+    if (empty) {
+      if (col.required) errors.push(`${key} is required`);
+      else out[key] = null; // optional columns are nullable in the schema
+      continue;
+    }
+
+    const error = checkValue(key, col, raw);
+    if (error) { errors.push(error); continue; }
+    out[key] = normalizeValue(col, raw);
+  }
+
+  return errors.length > 0 ? { errors } : { data: out as TableRecordMap[T] };
 }
+
+// Validate a full record (a POST/PUT body): every editable column, nothing missing or extra.
+export const validateFullObject = <T extends TableKey>(table: T, data: unknown): ParseResult<T> =>
+  validate(table, data, editableColumns(table));
+
+// Validate only the primary-key columns (e.g. PK params from the query string on a lookup or delete).
+export const validateOnlyPk = <T extends TableKey>(table: T, data: unknown): ParseResult<T> =>
+  validate(table, data, getPkFields(table));
 
 // Responds 400 and returns true when the result holds errors; the predicate narrows it to `{ data }` otherwise.
 export function sendErrorsIfInvalid<T>(

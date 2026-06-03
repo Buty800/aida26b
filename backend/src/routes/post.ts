@@ -1,10 +1,10 @@
 import express from 'express';
 import { Pool } from 'pg';
-import { parseInsert, sendErrorsIfInvalid } from '../validation/validate';
+import { validateFullObject, sendErrorsIfInvalid } from '../validation/validate';
 
 async function insertStudent(req: express.Request, res: express.Response, pool: Pool) {
   try {
-    const validated = parseInsert('students', req.body);
+    const validated = validateFullObject('students', req.body);
     if (sendErrorsIfInvalid(res, validated)) return;
     const s = validated.data;
     const result = await pool.query(
@@ -20,7 +20,7 @@ async function insertStudent(req: express.Request, res: express.Response, pool: 
 
 async function insertSubject(req: express.Request, res: express.Response, pool: Pool) {
   try {
-    const validated = parseInsert('subjects', req.body);
+    const validated = validateFullObject('subjects', req.body);
     if (sendErrorsIfInvalid(res, validated)) return;
     const s = validated.data;
     const result = await pool.query(
@@ -36,7 +36,7 @@ async function insertSubject(req: express.Request, res: express.Response, pool: 
 
 async function insertEnrollment(req: express.Request, res: express.Response, pool: Pool) {
   try {
-    const validated = parseInsert('enrollments', req.body);
+    const validated = validateFullObject('enrollments', req.body);
     if (sendErrorsIfInvalid(res, validated)) return;
     const e = validated.data;
     const result = await pool.query(

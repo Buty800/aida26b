@@ -1,18 +1,15 @@
 import express from 'express';
 import { Pool } from 'pg';
-import { parseUpdate, parsePk, sendErrorsIfInvalid } from '../validation/validate';
+import { validateFullObject, sendErrorsIfInvalid } from '../validation/validate';
 
 async function updateStudent(req: express.Request, res: express.Response, pool: Pool) {
   try {
-    const pk = parsePk('students', req.query as Record<string, unknown>);
-    if (sendErrorsIfInvalid(res, pk)) return;
-    const [numero_libreta] = pk.data;
-    const validated = parseUpdate('students', req.body);
+    const validated = validateFullObject('students', req.body);
     if (sendErrorsIfInvalid(res, validated)) return;
     const s = validated.data;
     const result = await pool.query(
       'UPDATE students SET dni = $1, first_name = $2, last_name = $3, email = $4, enrollment_date = $5, status = $6 WHERE numero_libreta = $7 RETURNING *',
-      [s.dni, s.first_name, s.last_name, s.email, s.enrollment_date, s.status, numero_libreta]
+      [s.dni, s.first_name, s.last_name, s.email, s.enrollment_date, s.status, s.numero_libreta]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Student not found' });
@@ -26,15 +23,12 @@ async function updateStudent(req: express.Request, res: express.Response, pool: 
 
 async function updateSubject(req: express.Request, res: express.Response, pool: Pool) {
   try {
-    const pk = parsePk('subjects', req.query as Record<string, unknown>);
-    if (sendErrorsIfInvalid(res, pk)) return;
-    const [cod_mat] = pk.data;
-    const validated = parseUpdate('subjects', req.body);
+    const validated = validateFullObject('subjects', req.body);
     if (sendErrorsIfInvalid(res, validated)) return;
     const s = validated.data;
     const result = await pool.query(
       'UPDATE subjects SET name = $1, description = $2, credits = $3, department = $4 WHERE cod_mat = $5 RETURNING *',
-      [s.name, s.description, s.credits, s.department, cod_mat]
+      [s.name, s.description, s.credits, s.department, s.cod_mat]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Subject not found' });
@@ -48,15 +42,12 @@ async function updateSubject(req: express.Request, res: express.Response, pool: 
 
 async function updateEnrollment(req: express.Request, res: express.Response, pool: Pool) {
   try {
-    const pk = parsePk('enrollments', req.query as Record<string, unknown>);
-    if (sendErrorsIfInvalid(res, pk)) return;
-    const [numero_libreta, cod_mat] = pk.data;
-    const validated = parseUpdate('enrollments', req.body);
+    const validated = validateFullObject('enrollments', req.body);
     if (sendErrorsIfInvalid(res, validated)) return;
     const e = validated.data;
     const result = await pool.query(
       'UPDATE enrollments SET enrollment_date = $1, grade = $2, status = $3 WHERE numero_libreta = $4 AND cod_mat = $5 RETURNING *',
-      [e.enrollment_date, e.grade, e.status, numero_libreta, cod_mat]
+      [e.enrollment_date, e.grade, e.status, e.numero_libreta, e.cod_mat]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Enrollment not found' });
