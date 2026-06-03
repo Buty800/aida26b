@@ -35,7 +35,8 @@ Este proyecto implementa un sistema de gestión académica para la Facultad de C
 │   ├── package.json
 │   └── tsconfig.json
 ├── database/
-│   └── schema.sql    # Scripts de base de datos
+│   ├── bootstrap.sql       # Crea roles y base de datos (corre una vez)
+│   └── migrations/         # Migraciones SQL versionadas
 └── README.md
 ```
 
@@ -49,8 +50,28 @@ Este proyecto implementa un sistema de gestión académica para la Facultad de C
 
 ### Base de Datos
 
-1. Crear una base de datos PostgreSQL llamada `faculty_management`
-2. Ejecutar el script `database/schema.sql` para crear las tablas
+1. Setup inicial (una vez por entorno, como superusuario de Postgres):
+   ```
+   psql -U postgres -f database/bootstrap.sql
+   ```
+   Esto crea los roles `aida26_owner` / `aida26_user` y la base `faculty_management`.
+
+2. Aplicar migraciones (desde `backend/`):
+   ```
+   npm run migrate
+   ```
+   Esto crea/actualiza las tablas según los archivos en `database/migrations/`.
+
+   Las migraciones son **forward-only** y nombradas con timestamp
+   (ej. `20260520_120000_initial_schema.sql`). Para cambiar el schema,
+   se agrega una migración nueva — nunca se editan las ya aplicadas.
+
+   **Para deshacer un cambio:** no se edita la migración original — se escribe
+   una migración nueva que aplique el revert. Ej: si
+   `20260601_120000_add_phone.sql` hizo `ALTER TABLE students ADD COLUMN phone`,
+   para sacarla escribimos `20260602_090000_remove_phone.sql` con
+   `ALTER TABLE students DROP COLUMN phone`. Las migraciones aplicadas son
+   inmutables — modificarlas rompe la verificación de checksum.
 
 ### Backend
 
