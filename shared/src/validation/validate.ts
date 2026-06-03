@@ -5,10 +5,9 @@ import type { ColumnDef, ColumnValidator, TableKey, TableRecordMap } from '../ty
 export type ParseResult<T extends TableKey> = { data: TableRecordMap[T] } | { errors: string[] };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
-// Argentina (America/Argentina/Buenos_Aires) is UTC-3 all year — no daylight saving.
+// Argentina (America/Argentina/Buenos_Aires) is UTC-3 all year - no daylight saving.
 const ARGENTINA_OFFSET_MS = -3 * 60 * 60 * 1000;
 
-// Patterns come from the static SSOT, so compile each once and reuse.
 const regexCache = new Map<string, RegExp>();
 function getRegex(source: string): RegExp {
   let re = regexCache.get(source);
@@ -21,12 +20,10 @@ function offsetText(days: number): string {
   return days > 0 ? `${days} day(s) in the future` : `${-days} day(s) in the past`;
 }
 
-// Calendar-day key for a bare date value, taken literally (parsed as UTC midnight).
 function literalDay(d: Date): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
 
-// Calendar-day key for the day an instant falls on in Argentina's timezone.
 function argentinaDay(ms: number): number {
   const local = new Date(ms + ARGENTINA_OFFSET_MS);
   return Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
@@ -38,12 +35,10 @@ function checkDate(key: string, v: ColumnValidator, value: unknown): string | un
 
   const day = literalDay(parsed);
 
-  // Absolute calendar floor (e.g. the institution's founding date).
   if (v.minDate && day < literalDay(new Date(v.minDate))) {
     return `${key} must be on or after ${v.minDate}`;
   }
 
-  // Day-offsets are signed whole calendar days from today (in Argentina's timezone).
   const diffDays = Math.round((day - argentinaDay(Date.now())) / MS_PER_DAY);
   if (typeof v.maxDayOffset === 'number' && diffDays > v.maxDayOffset) {
     return v.maxDayOffset === 0 ? `${key} must not be in the future` : `${key} must be on or before ${offsetText(v.maxDayOffset)}`;
@@ -103,7 +98,6 @@ function normalizeValue(col: ColumnDef, value: unknown): unknown {
     : value;
 }
 
-// A table's columns minus the display-only (joined) ones.
 function editableColumns(table: TableKey): string[] {
   return Object.entries(structure.tables[table].columns as Record<string, ColumnDef>)
     .filter(([, col]) => col.editable !== false)
@@ -114,8 +108,6 @@ function isEmpty(col: ColumnDef, value: unknown): boolean {
   return value === null || value === undefined || (col.type === 'string' && value === '');
 }
 
-// Validate a single column value; returns an error message, or undefined if valid.
-// Shared by the server (full-record loop) and the client (live per-field feedback).
 export function validateField(table: TableKey, column: string, value: unknown): string | undefined {
   const col = (structure.tables[table].columns as Record<string, ColumnDef>)[column];
   if (!col) return `${column} is not a valid field`;
@@ -123,9 +115,7 @@ export function validateField(table: TableKey, column: string, value: unknown): 
   return checkValue(column, col, value);
 }
 
-// Core: validate a data object against `fields` — it must hold exactly those columns (nothing
-// unexpected, nothing missing) and every value must be valid. Values are normalized; an empty
-// optional field becomes null.
+// `data` must hold exactly `fields` - nothing missing, nothing extra - with every value valid.
 function validate<T extends TableKey>(table: T, data: unknown, fields: string[]): ParseResult<T> {
   const columns = structure.tables[table].columns as Record<string, ColumnDef>;
   const obj = (data != null && typeof data === 'object' ? data : {}) as Record<string, unknown>;
@@ -133,7 +123,6 @@ function validate<T extends TableKey>(table: T, data: unknown, fields: string[])
   const errors: string[] = [];
   const out: Record<string, unknown> = {};
 
-  // Too many: reject anything outside the expected set.
   for (const key of Object.keys(obj)) {
     if (!allowed.has(key)) errors.push(`${key} is not an allowed field`);
   }
@@ -141,7 +130,7 @@ function validate<T extends TableKey>(table: T, data: unknown, fields: string[])
   for (const key of fields) {
     const col = columns[key];
     if (!col) { errors.push(`${key} is not a valid field`); continue; }
-    if (!(key in obj)) { errors.push(`${key} is required`); continue; } // too few
+    if (!(key in obj)) { errors.push(`${key} is required`); continue; }
 
     const raw = obj[key];
     const error = validateField(table, key, raw);
@@ -152,10 +141,8 @@ function validate<T extends TableKey>(table: T, data: unknown, fields: string[])
   return errors.length > 0 ? { errors } : { data: out as TableRecordMap[T] };
 }
 
-// Validate a full record (a POST/PUT body): every editable column, nothing missing or extra.
 export const validateFullObject = <T extends TableKey>(table: T, data: unknown): ParseResult<T> =>
   validate(table, data, editableColumns(table));
 
-// Validate only the primary-key columns (e.g. PK params from the query string on a lookup or delete).
 export const validateOnlyPk = <T extends TableKey>(table: T, data: unknown): ParseResult<T> =>
   validate(table, data, getPkFields(table));

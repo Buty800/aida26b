@@ -1,9 +1,8 @@
 import type { Response } from 'express';
 
-// The framework-agnostic validation core is shared with the frontend.
+// Validation core is shared with the frontend; this module adds the Express-only response helper.
 export * from '../../../shared/src/validation/validate';
 
-// Responds 400 and returns true when the result holds errors; the predicate narrows it to `{ data }` otherwise.
 export function sendErrorsIfInvalid<T>(
   res: Response,
   result: { data: T } | { errors: string[] },

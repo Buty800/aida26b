@@ -198,13 +198,11 @@ function getFieldElementId(tableKey: TableKey, fieldName: string): string {
   return `${tableKey}-${fieldName}`;
 }
 
-// Turn an <input>'s raw string into the typed value the validator/API expect (empty number -> null).
 function coerceFieldValue(column: ColumnDef, rawValue: string): unknown {
   if (column.type === 'number') return rawValue === '' ? null : Number(rawValue);
   return rawValue;
 }
 
-// Validate one field against the shared SSOT rules and show/clear its inline message. Returns the error, if any.
 function showFieldValidation(tableKey: TableKey, fieldName: string, column: ColumnDef): string | undefined {
   const id = getFieldElementId(tableKey, fieldName);
   const element = document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
@@ -215,7 +213,6 @@ function showFieldValidation(tableKey: TableKey, fieldName: string, column: Colu
   return message;
 }
 
-// Validate every editable field, showing all messages; returns true when the form is clean.
 function validateForm<K extends TableKey>(tableKey: K): boolean {
   return Object.entries(structure.tables[tableKey].columns)
     .filter(([, column]) => column.editable !== false)
@@ -314,7 +311,7 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    if (!validateForm(tableKey)) return; // inline messages already shown; let the user fix them
+    if (!validateForm(tableKey)) return;
     const payload = collectFormData(tableKey);
 
     const pkAndTheirValues = getPkFields(tableKey).map((pkFieldName) => [pkFieldName, String((payload as Record<string, unknown>)[pkFieldName])?? String((record as Record<string, unknown> | undefined)?.[pkFieldName]) ?? '']);
@@ -327,7 +324,7 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        alert(await errorMessage(response)); // keep the form open so the user can correct the input
+        alert(await errorMessage(response));
         return;
       }
       hideAnyForm();
@@ -339,7 +336,6 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
   });
 }
 
-// Pull the server's error message out of a failed response (the API replies with { error: '...' }).
 async function errorMessage(response: Response): Promise<string> {
   try {
     const body = await response.json();
