@@ -6,11 +6,12 @@
   "scripts": {
     "build": "tsc && cd ../frontend && npm run build",
     "build-backend": "tsc",
-    "start": "node dist/server.js",
-    "seed-admin": "npm run build-backend && node dist/seed-admin.js",
-    "test": "npm run build-backend && node --test test/*.test.js",
+    "start": "node dist/backend/src/server.js",
+    "seed-admin": "npm run build-backend && node dist/backend/src/seed-admin.js",
     "dev": "ts-node src/server.ts",
-    "watch": "nodemon --exec ts-node src/server.ts"
+    "watch": "nodemon --exec ts-node src/server.ts",
+    "migrate": "ts-node src/migrate.ts",
+    "test": "node --require ts-node/register --test --test-concurrency=1 test/*.test.ts"
   },
   "dependencies": {
     "express": "^4.18.2",

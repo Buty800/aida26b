@@ -1,8 +1,9 @@
-const assert = require('node:assert/strict');
-const http = require('node:http');
-const { test } = require('node:test');
-const { app, pool } = require('../dist/server.js');
-const { hashPassword } = require('../dist/auth.js');
+// @ts-nocheck
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import test from 'node:test';
+import { app, pool } from '../src/server';
+import { hashPassword } from '../src/auth';
 
 class FakeDb {
   constructor(users) {
@@ -116,7 +117,7 @@ async function makeDb() {
 async function withServer(db, run) {
   pool.query = db.query.bind(db);
   const server = http.createServer(app);
-  await new Promise((resolve) => server.listen(0, resolve));
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
   try {
     await run(baseUrl);
