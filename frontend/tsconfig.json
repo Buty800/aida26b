@@ -4,7 +4,13 @@
     "module": "esnext",
     "outDir": "./dist",
     "rootDir": "../",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "types": ["node"]
   },
   "include": ["src", "../shared/src"],
   "exclude": ["node_modules", "dist"]

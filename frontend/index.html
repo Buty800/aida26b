@@ -4,6 +4,183 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Gestión Académica - Faculty of Exact Sciences</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .nav {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        .nav button {
+            margin: 0 10px;
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .nav button:hover {
+            background-color: #0056b3;
+        }
+        .nav button.active {
+            background-color: #0056b3;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            user-select: none;
+            cursor: pointer;
+        }
+        th:hover {
+            background-color: #d9dcef;
+        }
+        th.sortable::after {
+            content: ' \2195';
+            color: transparent;
+        }
+        th.sortable:hover::after {
+            color: #6c757d;
+        }
+        th.sorted-asc::after {
+            content: ' \25B2';
+            color: #0056b3;
+        }
+        th.sorted-desc::after {
+            content: ' \25BC';
+            color: #0056b3;
+        }
+        th.sorted-asc:hover::after,
+        th.sorted-desc:hover::after {
+            color: #003d80;
+        }
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+        button {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .edit-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+        .add-btn {
+            background-color: #007bff;
+            color: white;
+            margin-bottom: 20px;
+        }
+        form {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .cancel-btn {
+            background-color: #6c757d;
+            color: white;
+        }
+        .filter-container {
+            margin-bottom: 15px;
+        }
+        .filter-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            margin-bottom: 6px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+        }
+        .filter-row.negated {
+            background: #fff0f0;
+            border-color: #f5c6cb;
+        }
+        .filter-label {
+            font-weight: bold;
+            font-size: 0.9em;
+            min-width: 120px;
+        }
+        .filter-col-select {
+            min-width: 130px;
+            font-size: 0.9em;
+        }
+        .negate-btn {
+            background: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            font-size: 0.8em;
+            border: 1px solid #5a6268;
+        }
+        .negate-btn.active {
+            background: #dc3545;
+            border-color: #c82333;
+        }
+        .remove-filter-btn {
+            background: transparent;
+            color: #999;
+            padding: 2px 6px;
+            font-size: 0.9em;
+            border: none;
+        }
+        .remove-filter-btn:hover {
+            color: #dc3545;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
