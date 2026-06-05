@@ -50,6 +50,12 @@ export const structure = {
               pattern: '^0+(?=\\d)',
               replacement: ''
             }
+          },
+          input: 'select',
+          foreignKey: {
+            table: 'students',
+            valueField: 'numero_libreta',
+            labelField: `first_name || ' ' || last_name`
           }
         },
 
@@ -69,7 +75,13 @@ export const structure = {
           readonlyOnEdit: true,
           validator: {
             required: true
-          }
+          },
+          input: 'select', 
+          foreignKey: {
+            table: "subjects",
+            valueField: 'cod_mat',
+            labelField: 'name',
+          },
         },
 
         subject_name: {

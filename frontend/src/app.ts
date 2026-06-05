@@ -1,13 +1,12 @@
 // Main application file
 // Code and comments in English
 import {structure} from '@shared/ssot/structure';
-import { ColumnDef, TableStructure, TableKey, TableRecordMap, Response as ApiResponse } from '@shared/types/types';
+import { ForeignKeyDef, ColumnDef, TableStructure, TableKey, TableRecordMap, Response as ApiResponse } from '@shared/types/types';
 import {getPkFields} from '@shared/utils/utils';
 import {validateField} from '@shared/validation/validate';
 import '../styles/style.css';
 
 const API_BASE = '/api';
-
 
 
 
@@ -45,8 +44,9 @@ const renderers: Record<'input'|'textarea'|'select', RendererFunc> = {
     (ta as HTMLTextAreaElement).value = String(record?.[fieldName] ?? '');
     return ta;
   },
-  select<K extends TableKey>({ id, fieldName, column, record }: RendererProps<K>) {
+  select<K extends TableKey>({ id, fieldName, column, record, isEdit }: RendererProps<K>) {
     const sel = document.createElement('select');
+    if (isEdit && column.readonlyOnEdit) { sel.disabled = true;}
     sel.id = id;
     if (column.validator?.required) sel.required = true;
     (column.options || []).forEach((opt: { value: string; label: string }) => {
@@ -665,7 +665,7 @@ function validateForm<K extends TableKey>(tableKey: K): boolean {
 }
 
 
-function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof TableRecordMap[K] & string, column: ColumnDef, record?: Partial<TableRecordMap[K]>, isEdit = false): HTMLElement {
+async function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof TableRecordMap[K] & string, column: ColumnDef, record?: Partial<TableRecordMap[K]>, isEdit = false): Promise<HTMLElement> {
   const id = getFieldElementId(tableKey, fieldName);
   const labelText = column.label ?? '';
   const wrapper = document.createElement('div');
@@ -677,6 +677,9 @@ function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof Table
   wrapper.appendChild(labelEl);
   const rendererKey = mapInputToRenderer(column.input);
   const renderer = getRenderer<K>(rendererKey);
+
+  await loadDefaultOptions(column);
+
   const inputEl = renderer({ id, fieldName, column, record, isEdit });
   wrapper.appendChild(inputEl);
 
@@ -690,6 +693,93 @@ function renderFormField<K extends TableKey>(tableKey: K, fieldName: keyof Table
   inputEl.addEventListener('input', () => { if (errorEl.textContent) showFieldValidation(tableKey, fieldName, column); });
 
   return wrapper;
+}
+
+// loads selection options if the col values are given by a fk that doesn't depend on anybody else
+async function loadDefaultOptions(column: ColumnDef) {
+
+  if (column.foreignKey) {
+    
+    const fk = column.foreignKey;
+
+    if (!fk.dependsOn) {
+      const response = await fetch(`${API_BASE}/${fk.table}`);
+      const rows = await response.json();
+      column.options = rows.map((row: any) => ({
+        value: row[fk.valueField],
+        label: `${row[fk.valueField]} - ${row[fk.labelField]}`
+      }));
+    }
+    
+  }
+
+}
+
+function setupDependentSelects<K extends TableKey>(
+  tableKey: K,
+  record?: Partial<TableRecordMap[K]> 
+) {
+  const tableConfig = structure.tables[tableKey];
+  for (const [fieldName, column] of Object.entries(tableConfig.columns)) {
+    
+    if (!column.foreignKey?.dependsOn) continue;
+    
+    const fk = column.foreignKey;
+    const childId = getFieldElementId(tableKey, fieldName);
+    const parentId = getFieldElementId(tableKey, fk.dependsOn.field);
+    const childSelect = document.getElementById(childId) as HTMLSelectElement | null;
+    const parentSelect = document.getElementById(parentId) as HTMLSelectElement | null;
+
+    if (!childSelect || !parentSelect) {console.log("childSelect or parentSelect didnt render"); continue;}
+
+    // first load
+    loadDependentOptions(parentSelect, childSelect, fk as ForeignKeyDef,  fieldName as keyof TableRecordMap[K], record);
+    
+    
+    parentSelect.addEventListener(
+      'change',
+       () => loadDependentOptions(parentSelect, childSelect, fk as ForeignKeyDef,  fieldName as keyof TableRecordMap[K], record)
+    );
+
+  }
+}
+
+
+// loads select options for a fk column whose values depend on another fk
+async function loadDependentOptions<K extends TableKey>(parentSelect: HTMLSelectElement, childSelect: HTMLSelectElement, fk: ForeignKeyDef, 
+  fieldName: keyof TableRecordMap[K],
+  record?: Partial<TableRecordMap[K]> 
+) {
+
+      if (!fk.dependsOn) return; 
+
+      const value = parentSelect.value;
+      childSelect.innerHTML = '';
+      
+      if (!value) {console.log("parentSelect empty"); return;}
+      
+      console.log("fetching");
+      
+      const response = await fetch(
+        `${API_BASE}/${fk.table}?${fk.dependsOn.foreignField}=${encodeURIComponent(value)}`
+      );
+
+      const rows = await response.json();
+
+      rows.forEach((row: any) => {
+        const option = document.createElement('option');
+        option.value = row[fk.valueField];
+        option.textContent = `${row[fk.valueField]} - ${row[fk.labelField]}`;
+        childSelect.appendChild(option);
+      });
+
+      // si estamos en modo edit, restauramos el valor del record
+      const currentValue = record?.[fieldName as keyof TableRecordMap[K]];
+      if (currentValue != null) {
+        childSelect.value = String(currentValue);
+      }
+
+    
 }
 
 function collectFormData<K extends TableKey>(tableKey: K): Partial<TableRecordMap[K]> {
@@ -718,14 +808,40 @@ function hideAnyForm(): void {
   formContainer.innerHTML = '';
 }
 
+async function resolveDependingForeignKeys<K extends TableKey>(
+  tableKey: K,
+  record?: Partial<TableRecordMap[K]>
+): Promise<void> {
+  if (!record) return;
+  const tableConfig = structure.tables[tableKey];
+  for (const [fieldName, column] of Object.entries(tableConfig.columns)) {
+    const fk = column.foreignKey;
+    if (!fk?.dependsOn) continue;
+
+    const childField   = fieldName;
+    const parentField  = fk.dependsOn.field;
+    const foreignField = fk.dependsOn.foreignField;
+
+    const childValue = (record as any)[childField];
+    if (childValue == null) continue;
+
+    const url = `${API_BASE}/${fk.table}/${encodeURIComponent(childValue)}`;
+    const row = await fetch(url).then(r => r.json());
+
+    (record as any)[parentField] = row[foreignField];
+  }
+}
+
 async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<TableRecordMap[K]>): Promise<void> {
   const tableConfig = structure.tables[tableKey];
   const isEdit = !!record;
   const formId = `${tableKey}-form`;
+   
+  resolveDependingForeignKeys(tableKey, record)
 
-  const fields = Object.entries(tableConfig.columns)
-    .filter(([, column]) => column.editable !== false)
-    .map(([fieldName, column]) => renderFormField(tableKey, fieldName as keyof TableRecordMap[K] & string, column, record, isEdit));
+  const fields = await Promise.all(Object.entries(tableConfig.columns)
+  .filter(([, column]) => column.editable !== false)
+  .map(([fieldName, column]) => renderFormField(tableKey, fieldName as keyof TableRecordMap[K] & string, column, record, isEdit)));
 
   // build form DOM
   formContainer.innerHTML = '';
@@ -797,6 +913,9 @@ async function showAnyForm<K extends TableKey>(tableKey: K, record?: Partial<Tab
       alert('No se pudo conectar con el servidor / Could not reach the server');
     }
   });
+
+  setupDependentSelects(tableKey, record); //después de crear el dom ponemos los listeners entre selects, record va a tener data si esto es un campo de edit
+
 }
 
 async function errorMessage(response: globalThis.Response): Promise<string> {

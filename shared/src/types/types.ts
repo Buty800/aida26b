@@ -32,6 +32,16 @@ type ColumnValidator = {
   normalize?: { pattern: string; replacement: string }; // regex find/replace applied to canonicalize the stored value
 }
 
+type ForeignKeyDef = {
+  table: string;
+  valueField: string;
+  labelField: string;
+  dependsOn?: {
+    field: string;
+    foreignField: string;
+  };
+};
+
 type ColumnDef = {
   type: MyTypeNames;
   label?: string;
@@ -42,6 +52,7 @@ type ColumnDef = {
   validator?: ColumnValidator;
   nullable?: boolean;
   derivable?: {originTable: string, sqlGenerationStatement: string};
+  foreignKey?: ForeignKeyDef;
 }
 
 type TableStructure = {
@@ -63,4 +74,4 @@ type TableRecordMap = {
   [T in keyof typeof structure.tables]: InferType<(typeof structure.tables)[T]['columns']>
 };
 
-export type {TypeMap, MyTypeNames, ColumnValidator, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap, Response};
+export type {TypeMap, MyTypeNames, ColumnValidator, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap, Response, ForeignKeyDef};
