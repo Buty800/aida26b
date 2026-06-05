@@ -1,9 +1,12 @@
 {
-  "extends": ["../tsconfig.base.json"],
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "module": "nodenext",
     "outDir": "./dist",
     "rootDir": "../",
+    "paths": {
+      "@shared" : ["../../shared/src"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

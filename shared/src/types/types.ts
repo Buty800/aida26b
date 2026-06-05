@@ -1,5 +1,11 @@
 import { structure } from "../ssot/structure";
 
+type Response = {
+  success: boolean;
+  data: undefined | any;
+  message: string;
+}
+
 type TypeMap = {
   string: string;
   number: number;
@@ -34,6 +40,8 @@ type ColumnDef = {
   editable?: boolean;
   readonlyOnEdit?: boolean;
   validator?: ColumnValidator;
+  nullable?: boolean;
+  derivable?: {originTable: string, sqlGenerationStatement: string};
 }
 
 type TableStructure = {
@@ -42,6 +50,7 @@ type TableStructure = {
   uiName: string
   title?: string
   addButtonLabel?: string
+  referencedTables?: string[]
 }
 
 type InferType<FieldDefs extends Record<string, ColumnDef>> = {
@@ -54,4 +63,4 @@ type TableRecordMap = {
   [T in keyof typeof structure.tables]: InferType<(typeof structure.tables)[T]['columns']>
 };
 
-export type {TypeMap, MyTypeNames, ColumnValidator, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap};
+export type {TypeMap, MyTypeNames, ColumnValidator, ColumnDef, TableStructure, InferType, TableKey, TableRecordMap, Response};

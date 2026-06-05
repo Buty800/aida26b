@@ -137,6 +137,39 @@ Este proyecto implementa un sistema de gestión académica para la Facultad de C
 - Automatizar procesos de titulación
 - Generar certificados de alumno regular
 
+## Testing de Paginación (Frontend + TypeScript)
+
+La paginación del frontend usa el parámetro `page` y el backend pagina con un `limit` fijo de **20** registros por página.
+El UI muestra el estado como: `Página X de Y (Total: N)` y ofrece botones `Anterior` / `Siguiente`.
+
+### Prerrequisitos
+
+- Backend y base de datos corriendo (la suite crea y borra registros de `students` vía API)
+- Frontend servido en el mismo host/puerto que el backend (por defecto `http://localhost:3000`)
+- Node.js 18+
+
+### Ejecutar los tests
+
+1. Instalar dependencias del frontend:
+   - `cd frontend`
+   - `npm install`
+   - `npx playwright install`
+2. (Opcional) Configurar URL base (por defecto `http://localhost:3000`):
+   - `set E2E_BASE_URL=http://localhost:3000`
+3. Ejecutar (desde `frontend/`):
+   - `npm run e2e`
+
+Por defecto corre en modo headless. Para ver el navegador:
+
+- `set E2E_HEADLESS=0`
+
+### Casos cubiertos
+
+- Contenido menor a una página (ej: 5 items → 1/1)
+- Contenido exactamente una página (20 items → 1/1)
+- Contenido mayor a una página (21 items → 1/2, navegación prev/next)
+- Muchas páginas (85 items → 1/5 ... 5/5)
+
 ## Contribución
 
 Este proyecto es parte del sistema académico de la Facultad de Ciencias Exactas. Para contribuciones, por favor contactar al equipo de desarrollo.

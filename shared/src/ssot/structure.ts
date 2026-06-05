@@ -35,25 +35,92 @@ export const structure = {
       addButtonLabel: 'Agregar Materia / Add Subject'
     } satisfies TableStructure,
     enrollments: {
-        pk: ['numero_libreta', 'cod_mat'],
-        uiName: 'Enrollment',
-        columns: {
-          numero_libreta: { type: 'string', label: 'Número de Libreta / Student ID:', readonlyOnEdit: true, validator: { required: true, pattern: '^\\d{1,4}/\\d{2}$', patternMessage: 'must match pattern NNNN/YY (1-4 digit number, slash, 2-digit year; leading zeros optional on the number)', normalize: { pattern: '^0+(?=\\d)', replacement: '' } } },
-          student_name: { type: 'string', label: 'Nombre del Alumno / Student Name:', editable: false },
-          cod_mat: { type: 'string', label: 'Código de Materia / Subject Code:', readonlyOnEdit: true, validator: { required: true } },
-          subject_name: { type: 'string', label: 'Nombre de Materia / Subject Name:', editable: false },
-          enrollment_date: { type: 'string', label: 'Fecha de Inscripción / Enrollment Date:', input: 'date', validator: { required: true, minDate: '1821-08-09' } },
-          grade: { type: 'number', label: 'Nota / Grade:', input: 'number', validator: { nullable: true, minValue: 0, maxValue: 10 } },
-          status: { type: 'string', label: 'Estado / Status:', input: 'select', validator: { nullable: true }, options: [
+      pk: ['numero_libreta', 'cod_mat'],
+      uiName: 'Enrollment',
+      columns: {
+        numero_libreta: {
+          type: 'string',
+          label: 'Número de Libreta / Student ID:',
+          readonlyOnEdit: true,
+          validator: {
+            required: true,
+            pattern: '^\\d{1,4}/\\d{2}$',
+            patternMessage: 'must match pattern NNNN/YY (1-4 digit number, slash, 2-digit year; leading zeros optional on the number)',
+            normalize: {
+              pattern: '^0+(?=\\d)',
+              replacement: ''
+            }
+          }
+        },
+
+        student_name: {
+          type: 'string',
+          label: 'Nombre del Alumno / Student Name:',
+          editable: false,
+          derivable: {
+            originTable: 'students',
+            sqlGenerationStatement: `entityName.first_name || ' ' || entityName.last_name`
+          }
+        },
+
+        cod_mat: {
+          type: 'string',
+          label: 'Código de Materia / Subject Code:',
+          readonlyOnEdit: true,
+          validator: {
+            required: true
+          }
+        },
+
+        subject_name: {
+          type: 'string',
+          label: 'Nombre de Materia / Subject Name:',
+          editable: false,
+          derivable: {
+            originTable: 'subjects',
+            sqlGenerationStatement: `entityName.name`
+          }
+        },
+
+        enrollment_date: {
+          type: 'string',
+          label: 'Fecha de Inscripción / Enrollment Date:',
+          input: 'date',
+          validator: {
+            required: true,
+            minDate: '1821-08-09'
+          }
+        },
+
+        grade: {
+          type: 'number',
+          label: 'Nota / Grade:',
+          input: 'number',
+          validator: {
+            nullable: true,
+            minValue: 0,
+            maxValue: 10
+          }
+        },
+
+        status: {
+          type: 'string',
+          label: 'Estado / Status:',
+          input: 'select',
+          validator: {
+            nullable: true
+          },
+          options: [
             { value: 'enrolled', label: 'Inscrito / Enrolled' },
             { value: 'completed', label: 'Completado / Completed' },
             { value: 'failed', label: 'Fallido / Failed' },
-          ] }
+          ]
         }
-      ,
-        title: 'Inscripciones / Enrollments',
-        addButtonLabel: 'Agregar Inscripción / Add Enrollment'
-      } satisfies TableStructure
+      },
+      title: 'Inscripciones / Enrollments',
+      addButtonLabel: 'Agregar Inscripción / Add Enrollment',
+      referencedTables: ['students', 'subjects']
+    } satisfies TableStructure
   },
   menu: {
     theme:{
