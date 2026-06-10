@@ -2,8 +2,8 @@ import type { TableKey, Response, ColumnDef, TableStructure }  from '../../share
 import      { structure } from '../../shared/src/ssot/structure';
 import type { Pool }      from 'pg';
 
-function getEntityName(table: TableKey){
-  return structure.tables[table].uiName;
+function getEntityName(table: TableKey): string {
+  return String(structure.tables[table].uiName.en);
 }
 
 async function tryQuery(pool: Pool, queryStatement: string, queryArguments?: any): Promise<Response>{
@@ -35,7 +35,8 @@ function getNotDerivableFields(table: TableKey): string[]{
 }
 
 function getReferencedRelations(tableName: TableKey): TableKey[]{
-  return (structure.tables[tableName] as TableStructure).referencedTables as TableKey[];
+  const refs = (structure.tables[tableName] as TableStructure).referencedTables;
+  return (Array.isArray(refs) ? refs : []) as TableKey[];
 }
 
 function getRequiredFields(tableName: TableKey){
