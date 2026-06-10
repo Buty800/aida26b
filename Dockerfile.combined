@@ -4,12 +4,11 @@ WORKDIR /app/frontend
 
 # Install frontend dependencies first for better layer caching
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm install
+RUN npm ci
 
 # Build frontend assets
 COPY frontend/src ./src
 COPY frontend/index.html ./
-COPY frontend/copy-static.cjs ./
 COPY frontend/tsconfig.json ./
 COPY frontend/webpack*.js ./
 COPY frontend/styles ./styles
@@ -24,7 +23,7 @@ WORKDIR /app/backend
 
 # Install backend dependencies
 COPY backend/package.json backend/package-lock.json* ./
-RUN npm install
+RUN npm ci
 
 # Copy database migration files
 COPY database/migrations /app/database/migrations
@@ -39,4 +38,4 @@ COPY shared/src /app/shared/src
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
 EXPOSE 3000
-CMD ["npm", "run", "dev"]
+CMD ["sh", "-c", "npm run migrate && npm run seed-admin && npm run dev"]

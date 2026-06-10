@@ -1,22 +1,20 @@
 FROM node:25-alpine
 
-WORKDIR /app
+WORKDIR /app/backend
 
-# Copy package files
-COPY package.json package-lock.json* ./
+# Copy package files first for better layer caching
+COPY backend/package.json backend/package-lock.json* ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies from the lockfile
+RUN npm ci
 
-# Copy source code
-COPY src ./src
-COPY tsconfig.json ./
+# Copy runtime inputs
+COPY backend/src ./src
+COPY backend/tsconfig.json ./
+COPY tsconfig.base.json /app/tsconfig.base.json
+COPY database/migrations /app/database/migrations
 
-# Create the first admin user if not exist
-RUN npm run seed-admin
-
-# Expose port
 EXPOSE 3000
 
-# Start development server
-CMD ["npm", "run", "dev"]
+# Run migrations and ensure the first admin exists before starting the API
+CMD ["sh", "-c", "npm run migrate && npm run seed-admin && npm run dev"]

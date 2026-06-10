@@ -8,44 +8,44 @@
 </head>
 <body>
     <div class="container">
-        <h1>Sistema de Gestión Académica / Academic Management System</h1>
+        <h1 id="app-title">Sistema de Gestión Académica</h1>
 
         <section id="auth-section" class="auth-section">
-            <h2>Ingresar / Login</h2>
+            <h2 id="login-title">Ingresar</h2>
             <form id="login-form">
                 <div class="form-group">
-                    <label for="login-username">Usuario / Username</label>
+                    <label id="login-username-label" for="login-username">Usuario</label>
                     <input id="login-username" name="username" autocomplete="username" required>
                 </div>
                 <div class="form-group">
-                    <label for="login-password">Contraseña / Password</label>
+                    <label id="login-password-label" for="login-password">Contraseña</label>
                     <input id="login-password" name="password" type="password" autocomplete="current-password" required>
                 </div>
                 <p id="login-error" class="message" hidden></p>
-                <button type="submit" class="add-btn">Ingresar / Login</button>
+                <button id="login-submit-btn" type="submit" class="add-btn">Ingresar</button>
             </form>
         </section>
 
         <section id="password-section" class="auth-section" style="display: none;">
-            <h2>Cambiar contraseña / Change Password</h2>
+            <h2 id="password-title">Cambiar contraseña</h2>
             <form id="password-form">
                 <div class="form-group">
-                    <label for="current-password">Contraseña actual / Current Password</label>
+                    <label id="current-password-label" for="current-password">Contraseña actual</label>
                     <input id="current-password" name="current_password" type="password" required>
                 </div>
                 <div class="form-group">
-                    <label for="new-password">Nueva contraseña / New Password</label>
+                    <label id="new-password-label" for="new-password">Nueva contraseña</label>
                     <input id="new-password" name="new_password" type="password" minlength="8" required>
                 </div>
                 <p id="password-error" class="message" hidden></p>
-                <button type="submit" class="add-btn">Actualizar / Update</button>
+                <button id="password-submit-btn" type="submit" class="add-btn">Actualizar</button>
             </form>
         </section>
 
         <div id="app-shell" style="display: none;">
             <div class="top-bar">
                 <span id="current-user"></span>
-                <button id="logout-btn" class="logout-btn">Salir / Logout</button>
+                <button id="logout-btn" class="logout-btn">Salir</button>
             </div>
 
             <nav id='general-nav' class="nav">
@@ -61,8 +61,8 @@
                 <div class="toolbar">
                     <button id="add-record-btn" class="add-btn"></button>
                     <div id="admin-actions" class="admin-actions" hidden>
-                        <button id="add-teacher-btn" class="add-btn">Agregar Profesor / Add Professor</button>
-                        <button id="add-admin-btn" class="add-btn">Agregar Admin / Add Admin</button>
+                        <button id="add-teacher-btn" class="add-btn">Agregar Profesor</button>
+                        <button id="add-admin-btn" class="add-btn">Agregar Admin</button>
                     </div>
                 </div>
                 <div id="record-form" style="display: none;"></div>

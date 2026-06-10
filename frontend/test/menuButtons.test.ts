@@ -1,6 +1,4 @@
-/**
- * @jest-environment jsdom
- */
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 describe('Menu Pickers (Theme & Language)', () => {
   beforeEach(() => {
@@ -29,21 +27,24 @@ describe('Menu Pickers (Theme & Language)', () => {
       </table>
     `;
 
-    global.fetch = jest.fn(() =>
+    global.fetch = vi.fn(() =>
       Promise.resolve({
         json: () => Promise.resolve([]),
       })
-    ) as jest.Mock;
+    ) as ReturnType<typeof vi.fn>;
+    vi.stubGlobal('alert', vi.fn());
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
     localStorage.clear();
   });
 
   describe('Theme Picker', () => {
     test('Theme picker select exists and changes theme on change event', async () => {
-      jest.resetModules();
+      vi.resetModules();
       await import('../src/app');
       
       const themeSelect = document.getElementById('theme-picker') as HTMLSelectElement;
@@ -53,7 +54,7 @@ describe('Menu Pickers (Theme & Language)', () => {
     });
 
     test('Theme picker updates document.body data-theme attribute', async () => {
-      jest.resetModules();
+      vi.resetModules();
       await import('../src/app');
       
       const themeSelect = document.getElementById('theme-picker') as HTMLSelectElement;
@@ -65,7 +66,7 @@ describe('Menu Pickers (Theme & Language)', () => {
     });
 
     test('Theme picker saves theme to localStorage', async () => {
-      jest.resetModules();
+      vi.resetModules();
       await import('../src/app');
       
       const themeSelect = document.getElementById('theme-picker') as HTMLSelectElement;
@@ -77,8 +78,8 @@ describe('Menu Pickers (Theme & Language)', () => {
     });
 
     test('Theme picker handles empty values gracefully', async () => {
-      jest.resetModules();
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      vi.resetModules();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       await import('../src/app');
       
       const themeSelect = document.getElementById('theme-picker') as HTMLSelectElement;
@@ -93,7 +94,7 @@ describe('Menu Pickers (Theme & Language)', () => {
 
   describe('Language Picker', () => {
     test('Language picker select exists', async () => {
-      jest.resetModules();
+      vi.resetModules();
       await import('../src/app');
       
       const languageSelect = document.getElementById('language-picker') as HTMLSelectElement;
@@ -103,7 +104,7 @@ describe('Menu Pickers (Theme & Language)', () => {
     });
 
     test('Language picker has valid language options', async () => {
-      jest.resetModules();
+      vi.resetModules();
       await import('../src/app');
       
       const languageSelect = document.getElementById('language-picker') as HTMLSelectElement;
@@ -114,7 +115,7 @@ describe('Menu Pickers (Theme & Language)', () => {
     });
 
     test('Language picker saves language to localStorage', async () => {
-      jest.resetModules();
+      vi.resetModules();
       await import('../src/app');
       
       const languageSelect = document.getElementById('language-picker') as HTMLSelectElement;
@@ -126,7 +127,7 @@ describe('Menu Pickers (Theme & Language)', () => {
     });
 
     test('Language picker updates nav buttons text on change', async () => {
-      jest.resetModules();
+      vi.resetModules();
       await import('../src/app');
       
       const languageSelect = document.getElementById('language-picker') as HTMLSelectElement;
@@ -144,8 +145,8 @@ describe('Menu Pickers (Theme & Language)', () => {
     });
 
     test('Language picker handles invalid values gracefully', async () => {
-      jest.resetModules();
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+      vi.resetModules();
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       await import('../src/app');
       
       const languageSelect = document.getElementById('language-picker') as HTMLSelectElement;

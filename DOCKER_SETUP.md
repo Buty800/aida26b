@@ -116,15 +116,15 @@ docker-compose -f docker-compose.combined.yml exec database psql -U postgres -d 
 - **backend**: Node.js/Express
   - Container: aida26_backend
   - Port: 3000
-  - Language: TypeScript (with ts-node)
+  - Language: TypeScript (with tsx)
   - Runs in development mode with hot-reload
   - Depends on database service
 
-- **frontend**: Node.js HTTP Server
+- **frontend**: Webpack development server
   - Container: aida26_frontend
   - Port: 8080
   - Language: TypeScript
-  - Serves compiled frontend files
+  - Serves frontend assets and proxies API requests to the backend
   - Depends on backend service
 
 ### Combined Configuration (docker-compose.combined.yml)
@@ -138,7 +138,7 @@ docker-compose -f docker-compose.combined.yml exec database psql -U postgres -d 
 - **app**: Node.js/Express (Backend + Frontend)
   - Container: aida26_app
   - Port: 3000
-  - Language: TypeScript (with ts-node)
+  - Language: TypeScript (with tsx)
   - Frontend files served as static content from `/public`
   - Backend API available at `/api/*`
   - Depends on database service
@@ -155,8 +155,8 @@ PORT: 3000
 DB_HOST: database (Docker service name)
 DB_PORT: 5432
 DB_NAME: faculty_management
-DB_USER: postgres
-DB_PASSWORD: postgres
+DB_USER: aida26_user
+DB_PASSWORD: CambiaEsta!
 API_URL: http://backend:3000  # Used by frontend
 ```
 
@@ -167,8 +167,8 @@ PORT: 3000
 DB_HOST: database (Docker service name)
 DB_PORT: 5432
 DB_NAME: faculty_management
-DB_USER: postgres
-DB_PASSWORD: postgres
+DB_USER: aida26_user
+DB_PASSWORD: CambiaEsta!
 ```
 
 To use different values, create a `.env` file in the project root. An example is provided in `.env.example`:
@@ -209,7 +209,7 @@ cp .env.example .env
 ### Separated Configuration
 For active development with separated services, volumes enable hot-reload:
 
-- **Backend**: `/backend/src` is mounted, changes trigger ts-node reload
+- **Backend**: `/backend/src` is mounted, changes trigger tsx watch reload
 - **Frontend**: Source is copied during build; rebuild required for changes
 
 To rebuild after code changes:
@@ -221,7 +221,7 @@ docker-compose up -d --build frontend # Rebuild frontend
 ### Combined Configuration
 For the combined configuration:
 
-- **Backend**: Changes to `/backend/src` trigger ts-node reload
+- **Backend**: Changes to `/backend/src` trigger tsx watch reload
 - **Frontend**: Changes require rebuilding the container
 
 To rebuild after code changes:

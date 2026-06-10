@@ -1,7 +1,7 @@
 // @ts-nocheck
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import test from 'node:test';
+import { test } from 'vitest';
 import { app, pool } from '../src/server';
 import { hashPassword } from '../src/auth';
 

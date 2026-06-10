@@ -4,15 +4,13 @@
   "description": "Backend for Faculty Student Management System",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && cd ../frontend && npm run build",
-    "build-backend": "tsc",
+    "build": "tsc",
     "start": "node dist/server.js",
-    "seed-admin": "ts-node src/seed-admin.ts",
-    "dev": "ts-node src/server.ts",
-    "watch": "nodemon --exec ts-node src/server.ts",
-    "testBackend": "NODE_ENV=test tsx --test",
-    "migrate": "ts-node src/migrate.ts",
-    "test": "node --require ts-node/register --test --test-concurrency=1 test/*.test.ts"
+    "dev": "tsx watch src/server.ts",
+    "migrate": "tsx src/migrate.ts",
+    "seed-admin": "tsx src/seed-admin.ts",
+    "test": "vitest run --config vitest.config.mts",
+    "test:db": "vitest run --config vitest.db.config.mts"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -21,13 +19,12 @@
     "dotenv": "^16.0.3"
   },
   "devDependencies": {
-    "@types/express": "^4.17.17",
-    "@types/pg": "^8.10.2",
     "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
     "@types/node": "^20.4.5",
-    "typescript": "^5.1.6",
-    "ts-node": "^10.9.1",
+    "@types/pg": "^8.10.2",
     "tsx": "^4.22.3",
-    "nodemon": "^3.0.1"
+    "typescript": "^5.1.6",
+    "vitest": "^2.1.8"
   }
 }
