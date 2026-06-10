@@ -495,6 +495,31 @@ function syncUrlToState(): void {
   });
 }
 
+function setLocalizedElementText(id: string, text: LocalizedText | string): void {
+  const element = document.getElementById(id);
+
+  if (element) {
+    element.textContent = getLocalizedText(text);
+  }
+}
+
+function applyStaticLanguageToUI(): void {
+  document.documentElement.lang = currentLanguage;
+
+  setLocalizedElementText('app-title', structure.commonText.appTitle);
+  setLocalizedElementText('login-title', structure.commonText.login);
+  setLocalizedElementText('login-username-label', structure.commonText.usernameLabel);
+  setLocalizedElementText('login-password-label', structure.commonText.password);
+  setLocalizedElementText('login-submit-btn', structure.commonText.login);
+  setLocalizedElementText('password-title', structure.commonText.changePassword);
+  setLocalizedElementText('current-password-label', structure.commonText.currentPassword);
+  setLocalizedElementText('new-password-label', structure.commonText.newPassword);
+  setLocalizedElementText('password-submit-btn', structure.commonText.update);
+  setLocalizedElementText('logout-btn', structure.commonText.logout);
+  setLocalizedElementText('add-teacher-btn', structure.commonText.addProfessor);
+  setLocalizedElementText('add-admin-btn', structure.commonText.addAdmin);
+}
+
 function updateNavButtonsText(): void {
   tableKeys.forEach((key) => {
     const config = structure.tables[key];
@@ -645,14 +670,8 @@ function showMenu(): void {
 }
 
 function applyLanguageToUI(): void {
+  applyStaticLanguageToUI();
   updateNavButtonsText();
-
-  const appTitleEl = document.getElementById('app-title');
-
-  if (appTitleEl) {
-    appTitleEl.textContent = getLocalizedText(structure.commonText.appTitle);
-  }
-
   showMenu();
 
   if (currentUser && !currentUser.must_change_password) {
@@ -1490,14 +1509,17 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
     return;
   }
 
-  const label = role === 'editor' ? getLocalizedText(structure.commonText.professorRole) : 'Admin';
+  const label =
+    role === 'editor'
+      ? getLocalizedText(structure.commonText.professorRole)
+      : getLocalizedText(structure.commonText.adminRole);
 
   formContainer.innerHTML = '';
 
   const form = document.createElement('form');
 
   const title = document.createElement('h3');
-  title.textContent = `Agregar ${label} / Add ${label}`;
+  title.textContent = `${getLocalizedText(structure.commonText.add)} ${label}`;
   form.appendChild(title);
 
   ['username', 'email'].forEach((field) => {
@@ -1506,7 +1528,7 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
 
     const labelEl = document.createElement('label');
     labelEl.htmlFor = `user-${field}`;
-    labelEl.textContent = field === 'username' ? getLocalizedText(structure.commonText.usernameLabel) : 'Email';
+    labelEl.textContent = field === 'username' ? getLocalizedText(structure.commonText.usernameLabel) : getLocalizedText(structure.commonText.emailLabel);
     wrapper.appendChild(labelEl);
 
     const input = document.createElement('input');
@@ -1555,7 +1577,7 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
       }
 
       hideAnyForm();
-      setMessage(`${label} agregado / ${label} added`);
+      setMessage(`${label} ${getLocalizedText(structure.commonText.added)}`);
     } catch (error) {
       const message = (error as Error).message;
 
@@ -1818,10 +1840,7 @@ window.deleteRecord = async <K extends TableKey>(
 const initialTheme = localStorage.getItem('theme') || 'light';
 document.body.setAttribute('data-theme', initialTheme);
 
-const appTitleEl = document.getElementById('app-title');
-if (appTitleEl) {
-  appTitleEl.textContent = getLocalizedText(structure.commonText.appTitle);
-}
+applyStaticLanguageToUI();
 
 addTeacherBtn.addEventListener('click', () => showUserForm('editor'));
 addAdminBtn.addEventListener('click', () => showUserForm('admin'));
@@ -1910,7 +1929,7 @@ logoutBtn.addEventListener('click', async () => {
 async function initialize(): Promise<void> {
   createTableNavButtons();
   syncUrlToState();
-  showMenu();
+  applyLanguageToUI();
 
   try {
     const response = await fetch(`${API_BASE}/auth/me`, {

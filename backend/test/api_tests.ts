@@ -3,7 +3,7 @@ import * as test_objects from './test_objects';
 import { updateDBWithEnrollment, updateDBWithStudent, updateDBWithSubject, fetchFullTable } from './test_helpers.ts';
 import { createAppGivenPool } from '../src/app';
 import { Pool } from 'pg';
-import test from 'node:test';
+import { afterAll, afterEach, beforeAll, test } from 'vitest';
 import assert from 'node:assert';
 import dotenv from 'dotenv';
 
@@ -21,14 +21,14 @@ const testsPool = new Pool({
   password: process.env.DB_PASSWORD
 })
 
-test.before(async () => {    
+beforeAll(async () => {    
     const app = createAppGivenPool(testsPool);
     server = app.listen(TESTS_PORT);
 });
 
-test.afterEach(async () => await clearDatabase());
+afterEach(async () => await clearDatabase());
 
-test.after(async () => {
+afterAll(async () => {
   testsPool.end();
   server.close();
 });

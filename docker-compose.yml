@@ -6,18 +6,17 @@ services:
     image: postgres:18-alpine
     container_name: aida26_database
     environment:
-      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_SUPERPASS:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB_NAME:-postgres}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-aida26_user}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERPASS:-CambiaEsta!}
+      POSTGRES_DB: ${POSTGRES_DB_NAME:-faculty_management}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
     networks:
       - aida26_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_SUPERUSER:-aida26_user}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,8 +24,8 @@ services:
   # Backend Service
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: aida26_backend
     environment:
       NODE_ENV: ${NODE_ENV:-development}
@@ -44,10 +43,12 @@ services:
     networks:
       - aida26_network
     volumes:
-      - ./backend/src:/app/src
-      - ./backend/package.json:/app/package.json
-      - ./backend/tsconfig.json:/app/tsconfig.json
-    command: npm run dev
+      - ./backend/src:/app/backend/src
+      - ./backend/package.json:/app/backend/package.json
+      - ./backend/tsconfig.json:/app/backend/tsconfig.json
+      - ./database/migrations:/app/database/migrations
+      - ./tsconfig.base.json:/app/tsconfig.base.json
+    command: sh -c "npm run migrate && npm run seed-admin && npm run dev"
 
   # Frontend Service
   frontend:

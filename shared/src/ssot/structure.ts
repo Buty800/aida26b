@@ -5,6 +5,14 @@ type LocalizedText = {
   en: string;
 };
 
+function getCurrentLanguage(): keyof LocalizedText {
+  return globalThis.localStorage?.getItem('language') === 'en' ? 'en' : 'es';
+}
+
+function localizeText(text: LocalizedText): string {
+  return text[getCurrentLanguage()] ?? text.es;
+}
+
 export const structure = {
   tables: {
     students: {
@@ -271,7 +279,7 @@ export const structure = {
           localStorage.setItem('theme', value);
         } catch (err) {
           console.error('Error changing theme:', err);
-          alert('Error al cambiar el tema / Error changing theme');
+          alert(localizeText(structure.commonText.themeChangeError));
         }
       },
       options: [
@@ -299,7 +307,7 @@ export const structure = {
           );
         } catch (err) {
           console.error('Error changing language:', err);
-          alert('Error al cambiar el idioma / Error changing language');
+          alert(localizeText(structure.commonText.languageChangeError));
         }
       },
       options: [
@@ -321,6 +329,15 @@ export const structure = {
     delete: { es: 'Eliminar', en: 'Delete' },
     edit: { es: 'Editar', en: 'Edit' },
     update: { es: 'Actualizar', en: 'Update' },
+    login: { es: 'Ingresar', en: 'Login' },
+    password: { es: 'Contraseña', en: 'Password' },
+    changePassword: { es: 'Cambiar contraseña', en: 'Change Password' },
+    currentPassword: { es: 'Contraseña actual', en: 'Current Password' },
+    newPassword: { es: 'Nueva contraseña', en: 'New Password' },
+    logout: { es: 'Salir', en: 'Logout' },
+    addProfessor: { es: 'Agregar Profesor', en: 'Add Professor' },
+    addAdmin: { es: 'Agregar Admin', en: 'Add Admin' },
+    added: { es: 'agregado', en: 'added' },
 
     // Auth / session messages
     sessionExpired: { es: 'La sesión expiró', en: 'Session expired' },
@@ -330,6 +347,8 @@ export const structure = {
     loginError: { es: 'Error ingresando', en: 'Login error' },
     passwordChangeFailed: { es: 'No se pudo cambiar la contraseña', en: 'Password change failed' },
     passwordChangeError: { es: 'Error cambiando contraseña', en: 'Password change error' },
+    themeChangeError: { es: 'Error al cambiar el tema', en: 'Error changing theme' },
+    languageChangeError: { es: 'Error al cambiar el idioma', en: 'Error changing language' },
 
     // Data / record messages
     errorLoadingData: { es: 'Error cargando datos', en: 'Error loading data' },
@@ -347,7 +366,9 @@ export const structure = {
     // Form labels
     initialPassword: { es: 'Contraseña inicial', en: 'Initial Password' },
     usernameLabel: { es: 'Usuario', en: 'Username' },
+    emailLabel: { es: 'Email', en: 'Email' },
     professorRole: { es: 'Profesor', en: 'Professor' },
+    adminRole: { es: 'Admin', en: 'Admin' },
     addUser: { es: 'Agregar usuario', en: 'Add user' },
 
     // Filters / pagination
