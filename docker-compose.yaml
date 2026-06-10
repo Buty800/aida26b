@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_NAME: faculty_management
+      DB_USER: aida26_owner
+      DB_PASSWORD: CambiaEsta!
+    depends_on:
+      - database
+    networks:
+      - app-network
+
+  database:
+    image: postgres:13
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: aida26_owner
+      POSTGRES_PASSWORD: CambiaEsta!
+      POSTGRES_DB: faculty_management
+    volumes:
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
