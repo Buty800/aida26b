@@ -84,11 +84,8 @@ const addAdminBtn = document.getElementById('add-admin-btn') as HTMLButtonElemen
 
 const formContainer = document.getElementById('record-form') as HTMLElement;
 const sharedTable = document.getElementById('records-table') as HTMLTableElement;
-const navContainer = document.getElementById('table-nav') as HTMLElement | null;
-const menuContainer = document.getElementById('menu-nav') as HTMLElement | null;
-
-if (!navContainer) throw new Error('Missing #table-nav element in DOM');
-if (!menuContainer) throw new Error('Missing #menu-nav element in DOM');
+const navContainer = document.getElementById('table-nav') as HTMLElement;
+const menuContainer = document.getElementById('menu-nav') as HTMLElement;
 
 const tableKeys = Object.keys(structure.tables) as TableKey[];
 const menuKeys = Object.keys(structure.menu) as Array<keyof typeof structure.menu>;

@@ -17,6 +17,11 @@ class FakeDb {
   async query(text, params = []) {
     const sql = text.replace(/\s+/g, ' ').trim();
 
+    // Transaction control statements - just acknowledge (handle variants)
+    if (/^(BEGIN|COMMIT|ROLLBACK|SAVEPOINT|RELEASE)\b/i.test(sql)) {
+      return { rows: [] };
+    }
+
     if (sql.startsWith('INSERT INTO auth.audit_log')) {
       this.audit.push({ actor_user_id: params[0], event_type: params[1], outcome: params[2] });
       return { rows: [] };
@@ -74,6 +79,14 @@ class FakeDb {
     if (sql.startsWith('SELECT * FROM students ORDER BY')) {
       return { rows: this.students };
     }
+
+    // Handle queries that wrap the students query in a CTE/derived table or use COUNT
+    if (/FROM\s*\(\s*SELECT\s+\*\s+FROM\s+students/i.test(sql) || /FROM\s+students/i.test(sql)) {
+      if (/SELECT\s+COUNT\(/i.test(sql)) {
+        return { rows: [{ count: this.students.length }] };
+      }
+      return { rows: this.students };
+    }
     if (sql.startsWith('INSERT INTO students')) {
       const student = {
         numero_libreta: params[0],
@@ -116,6 +129,10 @@ async function makeDb() {
 
 async function withServer(db, run) {
   pool.query = db.query.bind(db);
+  pool.connect = async () => ({
+    query: db.query.bind(db),
+    release: async () => {},
+  });
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
