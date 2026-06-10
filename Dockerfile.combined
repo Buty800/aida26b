@@ -26,6 +26,9 @@ WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json* ./
 RUN npm install
 
+# Copy database migration files
+COPY database/migrations /app/database/migrations
+
 # Copy backend source
 COPY backend/src ./src
 COPY backend/tsconfig.json ./

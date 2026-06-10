@@ -12,6 +12,9 @@ RUN npm install
 COPY src ./src
 COPY tsconfig.json ./
 
+# Create the first admin user if not exist
+RUN npm run seed-admin
+
 # Expose port
 EXPOSE 3000
 

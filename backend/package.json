@@ -7,7 +7,7 @@
     "build": "tsc && cd ../frontend && npm run build",
     "build-backend": "tsc",
     "start": "node dist/server.js",
-    "seed-admin": "npm run build-backend && node dist/seed-admin.js",
+    "seed-admin": "ts-node src/seed-admin.ts",
     "dev": "ts-node src/server.ts",
     "watch": "nodemon --exec ts-node src/server.ts",
     "testBackend": "NODE_ENV=test tsx --test",
