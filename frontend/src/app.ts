@@ -159,7 +159,7 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<global
   });
 
   if (response.status === 401) {
-    showLogin('La sesión expiró / Session expired');
+    showLogin(getLocalizedText(structure.commonText.sessionExpired));
     throw new Error('Authentication required');
   }
 
@@ -171,8 +171,8 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<global
 
     const message =
       data.error === 'Password change required'
-        ? 'Hay que cambiar la contraseña / Password change required'
-        : 'No tenés permiso para esa acción / You do not have permission for that action';
+        ? getLocalizedText(structure.commonText.passwordChangeRequired)
+        : getLocalizedText(structure.commonText.noPermission);
 
     setMessage(message);
     throw new Error(data.error || 'Forbidden');
@@ -834,7 +834,7 @@ async function loadTableData<K extends TableKey>(tableKey: K): Promise<void> {
     const message = (error as Error).message;
 
     if (message !== 'Authentication required' && message !== 'Forbidden') {
-      setMessage('Error cargando datos / Error loading data');
+      setMessage(getLocalizedText(structure.commonText.errorLoadingData));
       console.error(`Error loading ${tableKey}:`, error);
     }
   }
@@ -846,11 +846,11 @@ function renderPagination(total: number): void {
   const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
   const info = document.createElement('span');
-  info.textContent = `Página ${currentState.page} de ${totalPages} (Total: ${total})`;
+  info.textContent = `${getLocalizedText(structure.commonText.pageInfo)} ${currentState.page} ${getLocalizedText(structure.commonText.pageOf)} ${totalPages} (${getLocalizedText(structure.commonText.total)}: ${total})`;
   paginationContainer.appendChild(info);
 
   const prevBtn = document.createElement('button');
-  prevBtn.textContent = 'Anterior';
+  prevBtn.textContent = getLocalizedText(structure.commonText.previous);
   prevBtn.disabled = currentState.page <= 1;
   prevBtn.addEventListener('click', () => {
     if (currentState.page > 1) {
@@ -862,7 +862,7 @@ function renderPagination(total: number): void {
   paginationContainer.appendChild(prevBtn);
 
   const nextBtn = document.createElement('button');
-  nextBtn.textContent = 'Siguiente';
+  nextBtn.textContent = getLocalizedText(structure.commonText.next);
   nextBtn.disabled = currentState.page >= totalPages;
   nextBtn.addEventListener('click', () => {
     if (currentState.page < totalPages) {
@@ -957,7 +957,7 @@ function createFilterControl(
   const input = document.createElement('input');
 
   input.type = 'text';
-  input.placeholder = 'Filter...';
+  input.placeholder = getLocalizedText(structure.commonText.filterPlaceholder);
   input.value = entry.value ?? '';
   input.style.width = '150px';
 
@@ -990,7 +990,7 @@ function renderFilters<K extends TableKey>(tableKey: K): void {
   addBar.style.alignItems = 'center';
 
   const addBtn = document.createElement('button');
-  addBtn.textContent = '+ Agregar Filtro / Add Filter';
+  addBtn.textContent = `+ ${getLocalizedText(structure.commonText.addFilter)}`;
   addBtn.className = 'add-btn';
   addBtn.style.marginBottom = '0';
 
@@ -999,7 +999,7 @@ function renderFilters<K extends TableKey>(tableKey: K): void {
 
   const placeholder = document.createElement('option');
   placeholder.value = '';
-  placeholder.textContent = '-- Seleccionar columna / Select column --';
+  placeholder.textContent = `-- ${getLocalizedText(structure.commonText.selectColumn)} --`;
   addDropdown.appendChild(placeholder);
 
   allColumns.forEach(([fieldName, column]) => {
@@ -1486,11 +1486,11 @@ export function hideAnyForm(): void {
 
 function showUserForm(role: Exclude<Role, 'reader'>): void {
   if (currentUser?.role !== 'admin') {
-    setMessage('Solo admin puede crear usuarios / Only admin can create users');
+    setMessage(getLocalizedText(structure.commonText.onlyAdminCanCreateUsers));
     return;
   }
 
-  const label = role === 'editor' ? 'Profesor / Professor' : 'Admin';
+  const label = role === 'editor' ? getLocalizedText(structure.commonText.professorRole) : 'Admin';
 
   formContainer.innerHTML = '';
 
@@ -1506,7 +1506,7 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
 
     const labelEl = document.createElement('label');
     labelEl.htmlFor = `user-${field}`;
-    labelEl.textContent = field === 'username' ? 'Usuario / Username' : 'Email';
+    labelEl.textContent = field === 'username' ? getLocalizedText(structure.commonText.usernameLabel) : 'Email';
     wrapper.appendChild(labelEl);
 
     const input = document.createElement('input');
@@ -1518,7 +1518,7 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
     form.appendChild(wrapper);
   });
 
-  appendPasswordField(form, 'user-password', 'Contraseña inicial / Initial Password');
+  appendPasswordField(form, 'user-password', getLocalizedText(structure.commonText.initialPassword));
 
   const actionsDiv = document.createElement('div');
   actionsDiv.className = 'form-actions';
@@ -1560,7 +1560,7 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
       const message = (error as Error).message;
 
       if (message !== 'Authentication required' && message !== 'Forbidden') {
-        setMessage('Error creando usuario / Error creating user');
+        setMessage(getLocalizedText(structure.commonText.errorCreatingUser));
         console.error('Error creating user:', error);
       }
     }
@@ -1575,7 +1575,7 @@ async function showAnyForm<K extends TableKey>(
   record?: Partial<TableRecordMap[K]>
 ): Promise<void> {
   if (!canWriteAcademic()) {
-    setMessage('No tenés permiso para editar / You do not have edit permission');
+    setMessage(getLocalizedText(structure.commonText.noEditPermission));
     return;
   }
 
@@ -1618,7 +1618,7 @@ async function showAnyForm<K extends TableKey>(
     appendPasswordField(
       form,
       'students-password',
-      'Contraseña inicial / Initial Password'
+      getLocalizedText(structure.commonText.initialPassword)
     );
   }
 
@@ -1687,7 +1687,7 @@ async function showAnyForm<K extends TableKey>(
       hideAnyForm();
 
       if (tableKey === 'students' && !isEdit && payload.password) {
-        setMessage('Alumno y usuario creados / Student and user created');
+        setMessage(getLocalizedText(structure.commonText.studentAndUserCreated));
       } else {
         showSuccessMessage(responseJson.message ?? '');
       }
@@ -1697,7 +1697,7 @@ async function showAnyForm<K extends TableKey>(
       const message = (error as Error).message;
 
       if (message !== 'Authentication required' && message !== 'Forbidden') {
-        setMessage('Error guardando / Error saving');
+        setMessage(getLocalizedText(structure.commonText.errorSaving));
         console.error(
           `Error saving ${getLocalizedText(tableConfig.uiName).toLowerCase()}:`,
           error
@@ -1758,7 +1758,7 @@ window.editRecord = async <K extends TableKey>(
     const message = (error as Error).message;
 
     if (message !== 'Authentication required' && message !== 'Forbidden') {
-      setMessage('Error cargando registro / Error loading record');
+      setMessage(getLocalizedText(structure.commonText.errorLoadingRecord));
       console.error(`Error loading ${tableKey} for edit:`, error);
     }
   }
@@ -1772,7 +1772,7 @@ window.deleteRecord = async <K extends TableKey>(
   const entityName = getLocalizedText(tableConfig.uiName).toLowerCase();
 
   const confirmed = confirm(
-    `¿Está seguro de que desea eliminar este ${entityName}? / Are you sure you want to delete this ${entityName}?`
+    `${getLocalizedText(structure.commonText.deleteConfirm)} ${entityName}?`
   );
 
   if (!confirmed) return;
@@ -1805,7 +1805,7 @@ window.deleteRecord = async <K extends TableKey>(
     const message = (error as Error).message;
 
     if (message !== 'Authentication required' && message !== 'Forbidden') {
-      setMessage('Error eliminando / Error deleting');
+      setMessage(getLocalizedText(structure.commonText.errorDeleting));
       console.error(`Error deleting ${tableKey}:`, error);
     }
   }
@@ -1846,7 +1846,7 @@ loginForm.addEventListener('submit', async (event) => {
     });
 
     if (!response.ok) {
-      showLogin('Credenciales inválidas / Invalid credentials');
+      showLogin(getLocalizedText(structure.commonText.invalidCredentials));
       return;
     }
 
@@ -1855,7 +1855,7 @@ loginForm.addEventListener('submit', async (event) => {
     loginForm.reset();
     showApp(data.user);
   } catch (error) {
-    showLogin('Error ingresando / Login error');
+    showLogin(getLocalizedText(structure.commonText.loginError));
     console.error('Login error:', error);
   }
 });
@@ -1881,7 +1881,7 @@ passwordForm.addEventListener('submit', async (event) => {
 
     if (!response.ok) {
       passwordError.textContent =
-        'No se pudo cambiar la contraseña / Password change failed';
+        getLocalizedText(structure.commonText.passwordChangeFailed);
       passwordError.hidden = false;
       return;
     }
@@ -1892,7 +1892,7 @@ passwordForm.addEventListener('submit', async (event) => {
     showApp(data.user);
   } catch (error) {
     passwordError.textContent =
-      'Error cambiando contraseña / Password change error';
+      getLocalizedText(structure.commonText.passwordChangeError);
     passwordError.hidden = false;
     console.error('Password change error:', error);
   }

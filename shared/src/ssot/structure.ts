@@ -321,5 +321,49 @@ export const structure = {
     delete: { es: 'Eliminar', en: 'Delete' },
     edit: { es: 'Editar', en: 'Edit' },
     update: { es: 'Actualizar', en: 'Update' },
+
+    // Auth / session messages
+    sessionExpired: { es: 'La sesión expiró', en: 'Session expired' },
+    passwordChangeRequired: { es: 'Hay que cambiar la contraseña', en: 'Password change required' },
+    noPermission: { es: 'No tenés permiso para esa acción', en: 'You do not have permission for that action' },
+    invalidCredentials: { es: 'Credenciales inválidas', en: 'Invalid credentials' },
+    loginError: { es: 'Error ingresando', en: 'Login error' },
+    passwordChangeFailed: { es: 'No se pudo cambiar la contraseña', en: 'Password change failed' },
+    passwordChangeError: { es: 'Error cambiando contraseña', en: 'Password change error' },
+
+    // Data / record messages
+    errorLoadingData: { es: 'Error cargando datos', en: 'Error loading data' },
+    errorSaving: { es: 'Error guardando', en: 'Error saving' },
+    errorDeleting: { es: 'Error eliminando', en: 'Error deleting' },
+    errorLoadingRecord: { es: 'Error cargando registro', en: 'Error loading record' },
+
+    // User management
+    onlyAdminCanCreateUsers: { es: 'Solo admin puede crear usuarios', en: 'Only admin can create users' },
+    errorCreatingUser: { es: 'Error creando usuario', en: 'Error creating user' },
+    noEditPermission: { es: 'No tenés permiso para editar', en: 'You do not have edit permission' },
+    studentAndUserCreated: { es: 'Alumno y usuario creados', en: 'Student and user created' },
+    userAdded: { es: 'Usuario agregado', en: 'User added' },
+
+    // Form labels
+    initialPassword: { es: 'Contraseña inicial', en: 'Initial Password' },
+    usernameLabel: { es: 'Usuario', en: 'Username' },
+    professorRole: { es: 'Profesor', en: 'Professor' },
+    addUser: { es: 'Agregar usuario', en: 'Add user' },
+
+    // Filters / pagination
+    addFilter: { es: 'Agregar Filtro', en: 'Add Filter' },
+    selectColumn: { es: 'Seleccionar columna', en: 'Select column' },
+    pageInfo: { es: 'Página', en: 'Page' },
+    pageOf: { es: 'de', en: 'of' },
+    total: { es: 'Total', en: 'Total' },
+    previous: { es: 'Anterior', en: 'Previous' },
+    next: { es: 'Siguiente', en: 'Next' },
+    filterPlaceholder: { es: 'Filtrar...', en: 'Filter...' },
+
+    // Delete confirmation
+    deleteConfirm: {
+      es: '¿Está seguro de que desea eliminar este',
+      en: 'Are you sure you want to delete this',
+    },
   } satisfies Record<string, LocalizedText>,
 };

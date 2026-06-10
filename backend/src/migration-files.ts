@@ -12,7 +12,7 @@ export function sha256(text: string): string {
 
 export function listMigrationFiles(dir: string): string[] {
   if (!fs.existsSync(dir)) {
-    return [];
+    throw new Error(`Migrations directory does not exist: ${dir}`);
   }
   const all = fs.readdirSync(dir).filter((f) => f.endsWith('.sql'));
   const invalid = all.filter((f) => !FILENAME_PATTERN.test(f));
