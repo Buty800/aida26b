@@ -1,0 +1,67 @@
+Table user_group {
+  id_relation uuid [pk]
+  user_id integer
+  group_id integer 
+  created_at timestamp
+  role varchar 
+  status status
+  indexes {
+    (user_id, group_id) 
+  }
+}
+
+Table friends {
+  friend1 integer unique
+  friend2 valor
+  request friend_request
+  checks {
+    `friend1 < friend2` [name: 'evitar duplicados']
+  }
+}
+
+Table users {
+  username integer [primary key]
+  displayName varchar
+  password varchar
+  created_at timestamp
+}
+
+Table groups {
+  id uuid [pk]
+  displayName varchar
+  description texto
+  created_at timestamp
+}
+
+Table track {
+  id integer [primary key]
+  title varchar
+  body text [note: 'Content of the post']
+  group group [not null]
+  status varchar
+  created_at timestamp
+}
+
+Table log {
+  id uuid 
+  user_id user
+  track track  
+  value integer [NOT NULL]
+  fecha timestamp  
+  commentar varchar
+}
+
+
+Ref: "groups"."id" < "user_group"."group_id"
+
+Ref: "track"."group" < "groups"."id"
+
+Ref: "friends"."friend1" < "users"."username"
+
+Ref: "friends"."friend2" < "users"."username"
+
+Ref: "users"."username" < "user_group"."user_id"
+
+Ref: "log"."track" < "track"."id"
+
+Ref: "log"."user_id" < "users"."username"
