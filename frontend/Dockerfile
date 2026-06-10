@@ -13,6 +13,7 @@ COPY src ./src
 COPY index.html ./
 COPY tsconfig.json ./
 COPY copy-static.cjs ./
+COPY webpack*.js ./
 
 # Build the application
 RUN npm run build

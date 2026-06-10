@@ -11,6 +11,10 @@ COPY frontend/src ./src
 COPY frontend/index.html ./
 COPY frontend/copy-static.cjs ./
 COPY frontend/tsconfig.json ./
+COPY frontend/webpack*.js ./
+COPY frontend/styles ./styles
+COPY tsconfig.base.json /app/tsconfig.base.json
+COPY shared/src /app/shared/src
 RUN npm run build
 
 
@@ -25,6 +29,8 @@ RUN npm install
 # Copy backend source
 COPY backend/src ./src
 COPY backend/tsconfig.json ./
+COPY tsconfig.base.json /app/tsconfig.base.json
+COPY shared/src /app/shared/src
 
 # Place frontend dist where server.ts expects it: /app/frontend/dist
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist

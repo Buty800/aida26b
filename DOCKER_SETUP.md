@@ -19,9 +19,9 @@ This configuration is ideal for development as it allows independent service man
 
 ---
 
-### Option 2: Combined Container (Recommended for Production/Simplified Testing)
+### Option 2: Combined Container (Canonical for testing and simplified deploy)
 
-To build and run with both backend and frontend in a single container:
+To build and run with both backend and frontend in a single container (canonical):
 
 ```bash
 docker-compose -f docker-compose.combined.yml up --build
@@ -111,7 +111,7 @@ docker-compose -f docker-compose.combined.yml exec database psql -U postgres -d 
   - Container: aida26_database
   - Port: 5432
   - Persistent data in `postgres_data` volume
-  - Auto-initializes with schema.sql
+  - Database and initial user are created from `POSTGRES_*` env vars; schema is applied via backend migrations at app startup
 
 - **backend**: Node.js/Express
   - Container: aida26_backend
@@ -133,7 +133,7 @@ docker-compose -f docker-compose.combined.yml exec database psql -U postgres -d 
   - Container: aida26_database
   - Port: 5432
   - Persistent data in `postgres_data` volume
-  - Auto-initializes with schema.sql
+  - Database and initial user are created from `POSTGRES_*` env vars; the `app` service runs migrations on startup to create schema
 
 - **app**: Node.js/Express (Backend + Frontend)
   - Container: aida26_app
@@ -171,12 +171,11 @@ DB_USER: postgres
 DB_PASSWORD: postgres
 ```
 
-To use different values, create a `.env` file in the project root:
+To use different values, create a `.env` file in the project root. An example is provided in `.env.example`:
 
 ```bash
-# .env
-DB_PASSWORD=your_secure_password
-NODE_ENV=production
+cp .env.example .env
+# Edit .env and set secure values, especially DB_PASSWORD
 ```
 
 ## Troubleshooting
