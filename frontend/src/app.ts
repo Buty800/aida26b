@@ -79,8 +79,7 @@ const statusMessage = document.getElementById('status-message') as HTMLElement;
 const viewTitle = document.getElementById('view-title') as HTMLElement;
 const addRecordBtn = document.getElementById('add-record-btn') as HTMLButtonElement;
 const adminActions = document.getElementById('admin-actions') as HTMLElement;
-const addTeacherBtn = document.getElementById('add-teacher-btn') as HTMLButtonElement;
-const addAdminBtn = document.getElementById('add-admin-btn') as HTMLButtonElement;
+const addUserBtn = document.getElementById('add-user-btn') as HTMLButtonElement;
 
 const formContainer = document.getElementById('record-form') as HTMLElement;
 const sharedTable = document.getElementById('records-table') as HTMLTableElement;
@@ -516,8 +515,7 @@ function applyStaticLanguageToUI(): void {
   setLocalizedElementText('new-password-label', structure.commonText.newPassword);
   setLocalizedElementText('password-submit-btn', structure.commonText.update);
   setLocalizedElementText('logout-btn', structure.commonText.logout);
-  setLocalizedElementText('add-teacher-btn', structure.commonText.addProfessor);
-  setLocalizedElementText('add-admin-btn', structure.commonText.addAdmin);
+  setLocalizedElementText('add-user-btn', structure.commonText.addUser);
 }
 
 function updateNavButtonsText(): void {
@@ -596,7 +594,7 @@ function showSection(section: TableKey, pushState = true): void {
   addRecordBtn.style.display = canWriteAcademic() ? 'inline-block' : 'none';
 
   if (adminActions) {
-    adminActions.hidden = currentUser?.role !== 'admin' || section !== 'students';
+    adminActions.hidden = currentUser?.role !== 'admin';
   }
 
   hideAnyForm();
@@ -1503,23 +1501,18 @@ export function hideAnyForm(): void {
   formContainer.innerHTML = '';
 }
 
-function showUserForm(role: Exclude<Role, 'reader'>): void {
+function showUserForm(): void {
   if (currentUser?.role !== 'admin') {
     setMessage(getLocalizedText(structure.commonText.onlyAdminCanCreateUsers));
     return;
   }
-
-  const label =
-    role === 'editor'
-      ? getLocalizedText(structure.commonText.professorRole)
-      : getLocalizedText(structure.commonText.adminRole);
 
   formContainer.innerHTML = '';
 
   const form = document.createElement('form');
 
   const title = document.createElement('h3');
-  title.textContent = `${getLocalizedText(structure.commonText.add)} ${label}`;
+  title.textContent = getLocalizedText(structure.commonText.addUser);
   form.appendChild(title);
 
   ['username', 'email'].forEach((field) => {
@@ -1539,6 +1532,34 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
 
     form.appendChild(wrapper);
   });
+
+  const roleWrapper = document.createElement('div');
+  roleWrapper.className = 'form-group';
+
+  const roleLabelEl = document.createElement('label');
+  roleLabelEl.htmlFor = 'user-role';
+  roleLabelEl.textContent = getLocalizedText(structure.commonText.roleLabel);
+  roleWrapper.appendChild(roleLabelEl);
+
+  const roleSelect = document.createElement('select');
+  roleSelect.id = 'user-role';
+  roleSelect.required = true;
+
+  const roles: Array<{ value: Role; label: LocalizedText }> = [
+    { value: 'admin', label: structure.commonText.adminRole },
+    { value: 'editor', label: structure.commonText.editorRole },
+    { value: 'reader', label: structure.commonText.readerRole },
+  ];
+
+  roles.forEach((r) => {
+    const opt = document.createElement('option');
+    opt.value = r.value;
+    opt.textContent = getLocalizedText(r.label);
+    roleSelect.appendChild(opt);
+  });
+
+  roleWrapper.appendChild(roleSelect);
+  form.appendChild(roleWrapper);
 
   appendPasswordField(form, 'user-password', getLocalizedText(structure.commonText.initialPassword));
 
@@ -1565,6 +1586,7 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
     const username = (document.getElementById('user-username') as HTMLInputElement).value.trim();
     const email = (document.getElementById('user-email') as HTMLInputElement).value.trim();
     const password = (document.getElementById('user-password') as HTMLInputElement).value;
+    const role = (document.getElementById('user-role') as HTMLSelectElement).value;
 
     try {
       const response = await apiFetch('/admin/users', {
@@ -1577,7 +1599,7 @@ function showUserForm(role: Exclude<Role, 'reader'>): void {
       }
 
       hideAnyForm();
-      setMessage(`${label} ${getLocalizedText(structure.commonText.added)}`);
+      setMessage(getLocalizedText(structure.commonText.userAdded));
     } catch (error) {
       const message = (error as Error).message;
 
@@ -1636,13 +1658,7 @@ async function showAnyForm<K extends TableKey>(
 
   fields.forEach((field) => form.appendChild(field));
 
-  if (tableKey === 'students' && !isEdit) {
-    appendPasswordField(
-      form,
-      'students-password',
-      getLocalizedText(structure.commonText.initialPassword)
-    );
-  }
+
 
   const actionsDiv = document.createElement('div');
   actionsDiv.className = 'form-actions';
@@ -1675,9 +1691,7 @@ async function showAnyForm<K extends TableKey>(
 
     const payload = collectFormData(tableKey) as Record<string, unknown>;
 
-    if (tableKey === 'students' && !isEdit) {
-      payload.password = (document.getElementById('students-password') as HTMLInputElement).value;
-    }
+
 
     const pkAndTheirValues = getPkFields(tableKey).map((pkFieldName) => {
       const value =
@@ -1708,11 +1722,7 @@ async function showAnyForm<K extends TableKey>(
 
       hideAnyForm();
 
-      if (tableKey === 'students' && !isEdit && payload.password) {
-        setMessage(getLocalizedText(structure.commonText.studentAndUserCreated));
-      } else {
-        showSuccessMessage(responseJson.message ?? '');
-      }
+      showSuccessMessage(responseJson.message ?? '');
 
       loadTableData(tableKey);
     } catch (error) {
@@ -1842,8 +1852,7 @@ document.body.setAttribute('data-theme', initialTheme);
 
 applyStaticLanguageToUI();
 
-addTeacherBtn.addEventListener('click', () => showUserForm('editor'));
-addAdminBtn.addEventListener('click', () => showUserForm('admin'));
+addUserBtn.addEventListener('click', () => showUserForm());
 
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();

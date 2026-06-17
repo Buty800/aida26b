@@ -408,98 +408,6 @@ app.post(
   }
 );
 
-/**
- * Optional special case:
- * If a student is created with `password` in the body, also create its auth user.
- * Without `password`, the request falls back to the generic postHandler below.
- */
-async function createStudentWithUser(req: Request, res: express.Response) {
-  const password = readPassword(req.body.password);
-
-  if (!password) {
-    return postHandler(req, res, pool);
-  }
-
-  const {
-    numero_libreta,
-    dni,
-    first_name,
-    last_name,
-    email,
-    enrollment_date,
-    status,
-  } = req.body;
-
-  const client = await pool.connect();
-
-  try {
-    await client.query('BEGIN');
-
-    const { passwordHash, passwordSalt } = await auth.hashPassword(password);
-
-    const studentResult = await client.query(
-      `INSERT INTO students
-       (numero_libreta, dni, first_name, last_name, email, enrollment_date, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [
-        numero_libreta,
-        dni,
-        first_name,
-        last_name,
-        email,
-        enrollment_date,
-        status,
-      ]
-    );
-
-    await client.query(
-      `INSERT INTO auth.users
-       (
-         username,
-         email,
-         password_hash,
-         password_salt,
-         role,
-         must_change_password,
-         student_numero_libreta
-       )
-       VALUES ($1, $2, $3, $4, 'reader', true, $1)`,
-      [numero_libreta, email || null, passwordHash, passwordSalt]
-    );
-
-    await client.query('COMMIT');
-
-    await audit(req, 'student_user_created', 'success', {
-      username: numero_libreta,
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: 'Student created successfully',
-      data: studentResult.rows[0],
-    });
-  } catch (error) {
-    await client.query('ROLLBACK');
-
-    if (isUniqueViolation(error)) {
-      return res.status(409).json({
-        success: false,
-        error: 'Student or username already exists',
-      });
-    }
-
-    console.error('Error creating student:', error);
-
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-    });
-  } finally {
-    client.release();
-  }
-}
-
 // Generic academic API routes
 app.get('/api/:tableName', requireAuth, requirePasswordReady, async (req, res) => {
   return getHandler(req, res, pool);
@@ -511,10 +419,6 @@ app.post(
   requirePasswordReady,
   requireAcademicWrite,
   async (req, res) => {
-    if (req.params.tableName === 'students') {
-      return createStudentWithUser(req, res);
-    }
-
     return postHandler(req, res, pool);
   }
 );

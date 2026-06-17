@@ -10,7 +10,7 @@ class FakeDb {
     this.users = users;
     this.sessions = [];
     this.audit = [];
-    this.students = [];
+    this.business_users = [];
     this.nextUserId = Math.max(...users.map((user) => user.id)) + 1;
   }
 
@@ -76,29 +76,26 @@ class FakeDb {
       user.must_change_password = sql.includes('must_change_password = true');
       return { rows: [publicRow(user)] };
     }
-    if (sql.startsWith('SELECT * FROM students ORDER BY')) {
-      return { rows: this.students };
+    if (sql.startsWith('SELECT * FROM users') || sql.startsWith('SELECT users.* FROM users')) {
+      return { rows: this.business_users };
     }
 
-    // Handle queries that wrap the students query in a CTE/derived table or use COUNT
-    if (/FROM\s*\(\s*SELECT\s+\*\s+FROM\s+students/i.test(sql) || /FROM\s+students/i.test(sql)) {
+    // Handle queries that wrap the users query in a CTE/derived table or use COUNT
+    if (/FROM\s*\(\s*SELECT\s+\*\s+FROM\s+users/i.test(sql) || /FROM\s+users/i.test(sql)) {
       if (/SELECT\s+COUNT\(/i.test(sql)) {
-        return { rows: [{ count: this.students.length }] };
+        return { rows: [{ count: this.business_users.length }] };
       }
-      return { rows: this.students };
+      return { rows: this.business_users };
     }
-    if (sql.startsWith('INSERT INTO students')) {
-      const student = {
-        numero_libreta: params[0],
-        dni: params[1],
-        first_name: params[2],
-        last_name: params[3],
-        email: params[4],
-        enrollment_date: params[5],
-        status: params[6],
+    if (sql.startsWith('INSERT INTO users')) {
+      const user = {
+        username: params[0],
+        displayName: params[1],
+        password: params[2],
+        created_at: new Date().toISOString()
       };
-      this.students.push(student);
-      return { rows: [student] };
+      this.business_users.push(user);
+      return { rows: [user] };
     }
 
     throw new Error(`Unhandled query: ${sql}`);
@@ -187,31 +184,30 @@ test('reader can read but cannot mutate academic data', async () => {
   const db = await makeDb();
   await withServer(db, async (baseUrl) => {
     const cookie = await login(baseUrl, 'reader', 'readerpass');
-    assert.equal((await request(baseUrl, '/api/students', { cookie })).status, 200);
-    const write = await request(baseUrl, '/api/students', {
+    assert.equal((await request(baseUrl, '/api/users', { cookie })).status, 200);
+    const write = await request(baseUrl, '/api/users', {
       method: 'POST',
       cookie,
-      body: { numero_libreta: '100', dni: '1', first_name: 'Ada', last_name: 'Lovelace', email: 'ada@example.com', enrollment_date: '2026-01-01', status: 'active', password: 'studentpass' },
+      body: { username: 'ada', displayname: 'Ada Lovelace', password: 'userpassword' },
     });
     assert.equal(write.status, 403);
     assert.equal(db.audit.at(-1).event_type, 'permission_denied');
   });
 });
 
-test('editor can create a student account but cannot manage users', async () => {
+test('editor can create a business user but cannot manage admin users', async () => {
   const db = await makeDb();
   await withServer(db, async (baseUrl) => {
     const cookie = await login(baseUrl, 'editor', 'editorpass');
-    const createStudent = await request(baseUrl, '/api/students', {
+    const createUser = await request(baseUrl, '/api/users', {
       method: 'POST',
       cookie,
-      body: { numero_libreta: '101', dni: '2', first_name: 'Grace', last_name: 'Hopper', email: 'grace@example.com', enrollment_date: '2026-01-01', status: 'active', password: 'studentpass' },
+      body: { username: 'grace', displayname: 'Grace Hopper', password: 'userpassword' },
     });
-    assert.equal(createStudent.status, 201);
-    assert.equal(db.users.find((user) => user.username === '101').role, 'reader');
+    assert.equal(createUser.status, 201);
 
-    const createUser = await request(baseUrl, '/api/admin/users', { method: 'POST', cookie, body: { username: 'other', password: 'otherpass', role: 'reader' } });
-    assert.equal(createUser.status, 403);
+    const createAdminUser = await request(baseUrl, '/api/admin/users', { method: 'POST', cookie, body: { username: 'other', password: 'otherpass', role: 'reader' } });
+    assert.equal(createAdminUser.status, 403);
   });
 });
 
@@ -239,7 +235,7 @@ test('first login users must change password before using the app', async () => 
     await request(baseUrl, '/api/admin/users', { method: 'POST', cookie: adminCookie, body: { username: 'tempuser', password: 'temppass1', role: 'reader' } });
 
     const tempCookie = await login(baseUrl, 'tempuser', 'temppass1');
-    const blocked = await request(baseUrl, '/api/students', { cookie: tempCookie });
+    const blocked = await request(baseUrl, '/api/users', { cookie: tempCookie });
     assert.equal(blocked.status, 403);
     assert.equal(blocked.body.error, 'Password change required');
 
@@ -250,6 +246,6 @@ test('first login users must change password before using the app', async () => 
     });
     assert.equal(changed.status, 200);
     assert.equal(changed.body.user.must_change_password, false);
-    assert.equal((await request(baseUrl, '/api/students', { cookie: tempCookie })).status, 200);
+    assert.equal((await request(baseUrl, '/api/users', { cookie: tempCookie })).status, 200);
   });
 });

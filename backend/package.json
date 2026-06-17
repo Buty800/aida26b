@@ -2,10 +2,10 @@
   "name": "faculty-management-backend",
   "version": "1.0.0",
   "description": "Backend for Faculty Student Management System",
-  "main": "dist/server.js",
+  "main": "dist/backend/src/server.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/backend/src/server.js",
     "dev": "tsx watch src/server.ts",
     "migrate": "tsx src/migrate.ts",
     "seed-admin": "tsx src/seed-admin.ts",

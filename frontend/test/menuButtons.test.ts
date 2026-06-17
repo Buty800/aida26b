@@ -17,9 +17,9 @@ describe('Menu Pickers (Theme & Language)', () => {
       <div id="table-nav"></div>
       <div id="view-title"></div>
       <button id="add-record-btn"></button>
-      <div id="admin-actions"></div>
-      <button id="add-teacher-btn"></button>
-      <button id="add-admin-btn"></button>
+      <div id="admin-actions">
+        <button id="add-user-btn"></button>
+      </div>
       <div id="record-form"></div>
       <table id="records-table">
         <thead></thead>
@@ -131,16 +131,16 @@ describe('Menu Pickers (Theme & Language)', () => {
       await import('../src/app');
       
       const languageSelect = document.getElementById('language-picker') as HTMLSelectElement;
-      const initialText = (document.getElementById('students-btn') as HTMLButtonElement)?.textContent || '';
+      const initialText = (document.getElementById('users-btn') as HTMLButtonElement)?.textContent || '';
       
       languageSelect.value = 'en';
       languageSelect.dispatchEvent(new Event('change'));
       
-      const newText = (document.getElementById('students-btn') as HTMLButtonElement)?.textContent || '';
+      const newText = (document.getElementById('users-btn') as HTMLButtonElement)?.textContent || '';
       
       // El texto debe cambiar si inicialmente estaba en español
-      if (initialText === 'Alumnos') {
-        expect(newText).toBe('Students');
+      if (initialText === 'Usuarios') {
+        expect(newText).toBe('Users');
       }
     });
 

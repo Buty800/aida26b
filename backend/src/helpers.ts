@@ -19,7 +19,7 @@ function columnNamesEqualsNumber(columnsNames: string[], from: number = 1, separ
   let res: string = '';
   let i: number   = from;
   columnsNames.forEach(columnName => {
-    res += `${columnName} = $${i++}` + separator;
+    res += `"${columnName}" = $${i++}` + separator;
   })
   return res.slice(0, -separator.length);
 }
@@ -30,7 +30,7 @@ function getDerivableFields(tableName: TableKey): [string, ColumnDef][]{
 
 function getNotDerivableFields(table: TableKey): string[]{
   const columns: [string, ColumnDef][] = Object.entries(structure.tables[table].columns as Record<string, ColumnDef>);
-  const notDerivableEntries = columns.filter(([fieldName, columnDef]) => !columnDef.derivable);
+  const notDerivableEntries = columns.filter(([fieldName, columnDef]) => !columnDef.derivable && columnDef.editable !== false);
   return notDerivableEntries.map(([fieldName, column]) => fieldName);
 }
 
@@ -50,7 +50,7 @@ function formatTableColumnsForQuery(fieldsNames: string[], from: number = 1): st
     tupleWithReplaceParameters += `$${columnsCount} `;
   }  
   tupleWithReplaceParameters = '(' + tupleWithReplaceParameters.split(' ').join(',').slice(0,-1) + ')';
-  let tupleContent: string = '(' + fieldsNames.join(',') + ')';
+  let tupleContent: string = '(' + fieldsNames.map(name => `"${name}"`).join(',') + ')';
   return [tupleContent, tupleWithReplaceParameters];
 }
 

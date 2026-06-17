@@ -15,118 +15,106 @@ function localizeText(text: LocalizedText): string {
 
 export const structure = {
   tables: {
-    students: {
+    users: {
       columns: {
-        numero_libreta: {
+        username: {
           type: 'string',
-          label: { es: 'Número de Libreta', en: 'Student ID' },
+          label: { es: 'Nombre de usuario (@)', en: 'Username (@)' },
           readonlyOnEdit: true,
           validator: {
             required: true,
-            pattern: '^\\d{1,4}/\\d{2}$',
-            patternMessage:
-              'must match pattern NNNN/YY (1-4 digit number, slash, 2-digit year; leading zeros optional on the number)',
-            normalize: {
-              pattern: '^0+(?=\\d)',
-              replacement: '',
-            },
           },
         },
-
-        dni: {
+        displayname: {
           type: 'string',
-          label: { es: 'DNI', en: 'ID Number' },
+          label: { es: 'Nombre a Mostrar', en: 'Display Name' },
           validator: {
             required: true,
-            pattern: '^\\d{7,8}$',
-            patternMessage: 'must be 7 or 8 digits',
           },
         },
-
-        first_name: {
+        password: {
           type: 'string',
-          label: { es: 'Nombre', en: 'First Name' },
+          label: { es: 'Contraseña', en: 'Password' },
           validator: {
             required: true,
-            pattern: '^\\D+$',
-            patternMessage: 'must not contain numbers',
           },
         },
-
-        last_name: {
+        created_at: {
           type: 'string',
-          label: { es: 'Apellido', en: 'Last Name' },
-          validator: {
-            required: true,
-            pattern: '^\\D+$',
-            patternMessage: 'must not contain numbers',
-          },
-        },
-
-        email: {
-          type: 'string',
-          label: { es: 'Email', en: 'Email' },
-          input: 'email',
-          validator: {
-            nullable: true,
-            pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$',
-            patternMessage: 'must be a valid email address',
-          },
-        },
-
-        enrollment_date: {
-          type: 'string',
-          label: { es: 'Fecha de Inscripción', en: 'Enrollment Date' },
+          label: { es: 'Fecha de Creación', en: 'Created At' },
           input: 'date',
-          validator: {
-            nullable: true,
-            minDate: '1821-08-09',
-            maxDayOffset: 0,
-          },
+          editable: false,
         },
+      },
+      pk: 'username',
+      uiName: { es: 'Usuario', en: 'User' },
+      title: { es: 'Usuarios', en: 'Users' },
+      addButtonLabel: { es: 'Agregar Usuario', en: 'Add User' },
+    } satisfies TableStructure,
 
-        status: {
+    friends: {
+      columns: {
+        friend1: {
           type: 'string',
-          label: { es: 'Estado', en: 'Status' },
+          label: { es: 'Amigo 1', en: 'Friend 1' },
           input: 'select',
           validator: {
-            nullable: true,
+            required: true,
+          },
+          foreignKey: {
+            table: 'users',
+            valueField: 'username',
+            labelField: 'displayname',
+          },
+        },
+        friend2: {
+          type: 'string',
+          label: { es: 'Amigo 2', en: 'Friend 2' },
+          input: 'select',
+          validator: {
+            required: true,
+          },
+          foreignKey: {
+            table: 'users',
+            valueField: 'username',
+            labelField: 'displayname',
+          },
+        },
+        request: {
+          type: 'string',
+          label: { es: 'Estado de Solicitud', en: 'Request Status' },
+          input: 'select',
+          validator: {
+            required: true,
           },
           options: [
-            { value: 'active', label: { es: 'Activo', en: 'Active' } },
-            { value: 'graduated', label: { es: 'Graduado', en: 'Graduated' } },
-            {
-              value: 'interrupted',
-              label: { es: 'Interrumpido', en: 'Interrupted' },
-            },
+            { value: 'pending', label: { es: 'Pendiente', en: 'Pending' } },
+            { value: 'accepted', label: { es: 'Aceptado', en: 'Accepted' } },
+            { value: 'rejected', label: { es: 'Rechazado', en: 'Rejected' } },
           ],
         },
       },
-      pk: 'numero_libreta',
-      uiName: { es: 'Alumno', en: 'Student' },
-      title: { es: 'Alumnos', en: 'Students' },
-      addButtonLabel: { es: 'Agregar Alumno', en: 'Add Student' },
+      pk: ['friend1', 'friend2'],
+      uiName: { es: 'Amigo', en: 'Friend' },
+      title: { es: 'Amigos', en: 'Friends' },
+      addButtonLabel: { es: 'Agregar Amigo', en: 'Add Friend' },
     } satisfies TableStructure,
 
-    subjects: {
+    groups: {
       columns: {
-        cod_mat: {
+        id: {
           type: 'string',
-          label: { es: 'Código', en: 'Code' },
+          label: { es: 'ID Grupo', en: 'Group ID' },
+          editable: false,
           readonlyOnEdit: true,
-          validator: {
-            required: true,
-          },
         },
-
-        name: {
+        displayname: {
           type: 'string',
-          label: { es: 'Nombre', en: 'Name' },
+          label: { es: 'Nombre de Grupo', en: 'Group Name' },
           validator: {
             required: true,
           },
         },
-
         description: {
           type: 'string',
           label: { es: 'Descripción', en: 'Description' },
@@ -135,135 +123,206 @@ export const structure = {
             nullable: true,
           },
         },
-
-        credits: {
-          type: 'number',
-          label: { es: 'Créditos', en: 'Credits' },
-          input: 'number',
-          validator: {
-            nullable: true,
-            integer: true,
-            minValue: 1,
-          },
-        },
-
-        department: {
+        created_at: {
           type: 'string',
-          label: { es: 'Departamento', en: 'Department' },
-          validator: {
-            nullable: true,
-          },
+          label: { es: 'Fecha de Creación', en: 'Created At' },
+          input: 'date',
+          editable: false,
         },
       },
-      pk: 'cod_mat',
-      uiName: { es: 'Materia', en: 'Subject' },
-      title: { es: 'Materias', en: 'Subjects' },
-      addButtonLabel: { es: 'Agregar Materia', en: 'Add Subject' },
+      pk: 'id',
+      uiName: { es: 'Grupo', en: 'Group' },
+      title: { es: 'Grupos', en: 'Groups' },
+      addButtonLabel: { es: 'Agregar Grupo', en: 'Add Group' },
     } satisfies TableStructure,
 
-    enrollments: {
-      pk: ['numero_libreta', 'cod_mat'],
-      uiName: { es: 'Inscripción', en: 'Enrollment' },
+    user_group: {
       columns: {
-        numero_libreta: {
+        id_relation: {
           type: 'string',
-          label: { es: 'Número de Libreta', en: 'Student ID' },
-          readonlyOnEdit: true,
-          validator: {
-            required: true,
-            pattern: '^\\d{1,4}/\\d{2}$',
-            patternMessage:
-              'must match pattern NNNN/YY (1-4 digit number, slash, 2-digit year; leading zeros optional on the number)',
-            normalize: {
-              pattern: '^0+(?=\\d)',
-              replacement: '',
-            },
-          },
-          input: 'select',
-          foreignKey: {
-            table: 'students',
-            valueField: 'numero_libreta',
-            labelField: `first_name || ' ' || last_name`,
-          },
-        },
-
-        student_name: {
-          type: 'string',
-          label: { es: 'Nombre del Alumno', en: 'Student Name' },
+          label: { es: 'ID de Relación', en: 'Relation ID' },
           editable: false,
-          derivable: {
-            originTable: 'students',
-            sqlGenerationStatement:
-              `entityName.first_name || ' ' || entityName.last_name`,
-          },
-        },
-
-        cod_mat: {
-          type: 'string',
-          label: { es: 'Código de Materia', en: 'Subject Code' },
           readonlyOnEdit: true,
+        },
+        user_id: {
+          type: 'string',
+          label: { es: 'Usuario', en: 'User' },
+          input: 'select',
           validator: {
             required: true,
           },
-          input: 'select',
           foreignKey: {
-            table: 'subjects',
-            valueField: 'cod_mat',
-            labelField: 'name',
+            table: 'users',
+            valueField: 'username',
+            labelField: 'displayname',
           },
         },
-
-        subject_name: {
+        group_id: {
           type: 'string',
-          label: { es: 'Nombre de Materia', en: 'Subject Name' },
-          editable: false,
-          derivable: {
-            originTable: 'subjects',
-            sqlGenerationStatement: `entityName.name`,
+          label: { es: 'Grupo', en: 'Group' },
+          input: 'select',
+          validator: {
+            required: true,
+          },
+          foreignKey: {
+            table: 'groups',
+            valueField: 'id',
+            labelField: 'displayname',
           },
         },
-
-        enrollment_date: {
+        created_at: {
           type: 'string',
-          label: { es: 'Fecha de Inscripción', en: 'Enrollment Date' },
+          label: { es: 'Fecha de Creación', en: 'Created At' },
           input: 'date',
+          editable: false,
+        },
+        role: {
+          type: 'string',
+          label: { es: 'Rol', en: 'Role' },
           validator: {
             required: true,
-            minDate: '1821-08-09',
           },
         },
-
-        grade: {
-          type: 'number',
-          label: { es: 'Nota', en: 'Grade' },
-          input: 'number',
-          validator: {
-            nullable: true,
-            minValue: 0,
-            maxValue: 10,
-          },
-        },
-
         status: {
           type: 'string',
           label: { es: 'Estado', en: 'Status' },
           input: 'select',
           validator: {
-            nullable: true,
+            required: true,
           },
           options: [
-            { value: 'enrolled', label: { es: 'Inscrito', en: 'Enrolled' } },
-            {
-              value: 'completed',
-              label: { es: 'Completado', en: 'Completed' },
-            },
-            { value: 'failed', label: { es: 'Fallido', en: 'Failed' } },
+            { value: 'invited', label: { es: 'Invitado', en: 'Invited' } },
+            { value: 'active', label: { es: 'Activo', en: 'Active' } },
+            { value: 'left', label: { es: 'Se retiró', en: 'Left' } },
           ],
         },
       },
-      title: { es: 'Inscripciones', en: 'Enrollments' },
-      addButtonLabel: { es: 'Agregar Inscripción', en: 'Add Enrollment' },
-      referencedTables: ['students', 'subjects'],
+      pk: 'id_relation',
+      uiName: { es: 'Miembro', en: 'Member' },
+      title: { es: 'Miembros de Grupo', en: 'Group Members' },
+      addButtonLabel: { es: 'Agregar Miembro', en: 'Add Member' },
+    } satisfies TableStructure,
+
+    track: {
+      columns: {
+        id: {
+          type: 'number',
+          label: { es: 'ID de Actividad', en: 'Activity ID' },
+          editable: false,
+          readonlyOnEdit: true,
+        },
+        title: {
+          type: 'string',
+          label: { es: 'Título', en: 'Title' },
+          validator: {
+            required: true,
+          },
+        },
+        body: {
+          type: 'string',
+          label: { es: 'Cuerpo', en: 'Body' },
+          input: 'textarea',
+          validator: {
+            nullable: true,
+          },
+        },
+        group: {
+          type: 'string',
+          label: { es: 'Grupo', en: 'Group' },
+          input: 'select',
+          validator: {
+            required: true,
+          },
+          foreignKey: {
+            table: 'groups',
+            valueField: 'id',
+            labelField: 'displayName',
+          },
+        },
+        status: {
+          type: 'string',
+          label: { es: 'Estado', en: 'Status' },
+          validator: {
+            required: true,
+          },
+        },
+        created_at: {
+          type: 'string',
+          label: { es: 'Fecha de Creación', en: 'Created At' },
+          input: 'date',
+          editable: false,
+        },
+      },
+      pk: 'id',
+      uiName: { es: 'Actividad', en: 'Activity' },
+      title: { es: 'Actividades', en: 'Activities' },
+      addButtonLabel: { es: 'Agregar Actividad', en: 'Add Activity' },
+    } satisfies TableStructure,
+
+    log: {
+      columns: {
+        id: {
+          type: 'string',
+          label: { es: 'ID de Registro', en: 'Log ID' },
+          editable: false,
+          readonlyOnEdit: true,
+        },
+        user_id: {
+          type: 'string',
+          label: { es: 'Usuario', en: 'User' },
+          input: 'select',
+          validator: {
+            required: true,
+          },
+          foreignKey: {
+            table: 'users',
+            valueField: 'username',
+            labelField: 'displayname',
+          },
+        },
+        track: {
+          type: 'number',
+          label: { es: 'Actividad', en: 'Activity' },
+          input: 'select',
+          validator: {
+            required: true,
+          },
+          foreignKey: {
+            table: 'track',
+            valueField: 'id',
+            labelField: 'title',
+          },
+        },
+        value: {
+          type: 'number',
+          label: { es: 'Valor', en: 'Value' },
+          input: 'number',
+          validator: {
+            required: true,
+            integer: true,
+            minValue: 0,
+          },
+        },
+        fecha: {
+          type: 'string',
+          label: { es: 'Fecha', en: 'Date' },
+          input: 'date',
+          validator: {
+            required: true,
+          },
+        },
+        commentar: {
+          type: 'string',
+          label: { es: 'Comentario', en: 'Comment' },
+          validator: {
+            nullable: true,
+          },
+        },
+      },
+      pk: 'id',
+      uiName: { es: 'Registro', en: 'Log' },
+      title: { es: 'Registros de Actividades', en: 'Activity Logs' },
+      addButtonLabel: { es: 'Agregar Registro', en: 'Add Log' },
     } satisfies TableStructure,
   },
 
@@ -322,8 +381,8 @@ export const structure = {
     actions: { es: 'Acciones', en: 'Actions' },
     add: { es: 'Agregar', en: 'Add' },
     appTitle: {
-      es: 'Sistema de Gestión Académica',
-      en: 'Academic Management System',
+      es: 'Gestor de Base de Datos Tracker',
+      en: 'Tracker DB Manager',
     },
     cancel: { es: 'Cancelar', en: 'Cancel' },
     delete: { es: 'Eliminar', en: 'Delete' },
@@ -335,8 +394,6 @@ export const structure = {
     currentPassword: { es: 'Contraseña actual', en: 'Current Password' },
     newPassword: { es: 'Nueva contraseña', en: 'New Password' },
     logout: { es: 'Salir', en: 'Logout' },
-    addProfessor: { es: 'Agregar Profesor', en: 'Add Professor' },
-    addAdmin: { es: 'Agregar Admin', en: 'Add Admin' },
     added: { es: 'agregado', en: 'added' },
 
     // Auth / session messages
@@ -367,9 +424,11 @@ export const structure = {
     initialPassword: { es: 'Contraseña inicial', en: 'Initial Password' },
     usernameLabel: { es: 'Usuario', en: 'Username' },
     emailLabel: { es: 'Email', en: 'Email' },
-    professorRole: { es: 'Profesor', en: 'Professor' },
+    editorRole: { es: 'Editor', en: 'Editor' },
     adminRole: { es: 'Admin', en: 'Admin' },
-    addUser: { es: 'Agregar usuario', en: 'Add user' },
+    readerRole: { es: 'Lector', en: 'Reader' },
+    addUser: { es: 'Agregar usuario de sistema', en: 'Add system user' },
+    roleLabel: { es: 'Rol', en: 'Role' },
 
     // Filters / pagination
     addFilter: { es: 'Agregar Filtro', en: 'Add Filter' },

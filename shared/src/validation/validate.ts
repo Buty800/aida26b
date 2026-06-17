@@ -71,7 +71,7 @@ function checkValue(key: string, col: ColumnDef, value: unknown): string | undef
     if (dateError) return dateError;
   }
 
-  if (col.options && !col.options.some((o) => o.value === value)) {
+  if (col.options && !col.options.some((o) => String(o.value) === String(value))) {
     return `${key} must be one of: ${col.options.map((o) => o.value).join(', ')}`;
   }
 
@@ -132,7 +132,14 @@ function validate<T extends TableKey>(table: T, data: unknown, fields: string[])
     if (!col) { errors.push(`${key} is not a valid field`); continue; }
     if (!(key in obj)) { errors.push(`${key} is required`); continue; }
 
-    const raw = obj[key];
+    let raw = obj[key];
+    if (col.type === 'number' && typeof raw === 'string' && raw !== '') {
+      const num = Number(raw);
+      if (!isNaN(num)) {
+        raw = num;
+      }
+    }
+
     const error = validateField(table, key, raw);
     if (error) { errors.push(error); continue; }
     out[key] = isEmpty(col, raw) ? null : normalizeValue(col, raw);
