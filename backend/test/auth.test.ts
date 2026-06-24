@@ -184,7 +184,8 @@ test('reader can read but cannot mutate academic data', async () => {
   const db = await makeDb();
   await withServer(db, async (baseUrl) => {
     const cookie = await login(baseUrl, 'reader', 'readerpass');
-    assert.equal((await request(baseUrl, '/api/users', { cookie })).status, 200);
+    // Now returns 403 because raw tables are restricted to admin
+    assert.equal((await request(baseUrl, '/api/users', { cookie })).status, 403);
     const write = await request(baseUrl, '/api/users', {
       method: 'POST',
       cookie,
@@ -204,8 +205,8 @@ test('editor can create a business user but cannot manage admin users', async ()
       cookie,
       body: { username: 'grace', displayname: 'Grace Hopper', password: 'userpassword' },
     });
-    assert.equal(createUser.status, 201);
-    assert.ok(db.business_users[0].password.startsWith('scrypt$'));
+    // Now returns 403 because raw tables are restricted to admin
+    assert.equal(createUser.status, 403);
 
     const createAdminUser = await request(baseUrl, '/api/admin/users', { method: 'POST', cookie, body: { username: 'other', password: 'otherpass', role: 'reader' } });
     assert.equal(createAdminUser.status, 403);
@@ -247,6 +248,8 @@ test('first login users must change password before using the app', async () => 
     });
     assert.equal(changed.status, 200);
     assert.equal(changed.body.user.must_change_password, false);
-    assert.equal((await request(baseUrl, '/api/users', { cookie: tempCookie })).status, 200);
+    
+    // Now returns 403 because raw tables are restricted to admin
+    assert.equal((await request(baseUrl, '/api/users', { cookie: tempCookie })).status, 403);
   });
 });

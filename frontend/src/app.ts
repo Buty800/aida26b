@@ -136,11 +136,8 @@ function showApp(user: AuthUser): void {
 
   authSection.style.display = 'none';
   passwordSection.style.display = 'none';
-  appShell.style.display = 'block';
 
-  currentUserEl.textContent = `${user.username} (${user.role})`;
-
-  showSection(activeTableKey, false);
+  renderRoute();
 }
 
 async function apiFetch(path: string, options: RequestInit = {}): Promise<globalThis.Response> {
@@ -1861,16 +1858,74 @@ applyStaticLanguageToUI();
 
 addUserBtn.addEventListener('click', () => showUserForm());
 
+// Register mode state and form toggling
+let isRegisterMode = false;
+
+const toggleAuthLink = document.getElementById('toggle-auth-link') as HTMLAnchorElement | null;
+const displaynameGroup = document.getElementById('displayname-group') as HTMLElement | null;
+const loginTitle = document.getElementById('login-title') as HTMLElement | null;
+const loginSubmitBtn = document.getElementById('login-submit-btn') as HTMLButtonElement | null;
+
+if (toggleAuthLink) {
+  toggleAuthLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    isRegisterMode = !isRegisterMode;
+    if (displaynameGroup && loginTitle && loginSubmitBtn) {
+      if (isRegisterMode) {
+        displaynameGroup.style.display = 'block';
+        loginTitle.textContent = 'Registrarse';
+        loginSubmitBtn.textContent = 'Registrarse';
+        toggleAuthLink.textContent = '¿Ya tienes cuenta? Ingresa';
+      } else {
+        displaynameGroup.style.display = 'none';
+        loginTitle.textContent = 'Ingresar';
+        loginSubmitBtn.textContent = 'Ingresar';
+        toggleAuthLink.textContent = '¿No tienes cuenta? Regístrate';
+      }
+    }
+  });
+}
+
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   loginError.hidden = true;
 
   const formData = new FormData(loginForm);
 
-  const payload = {
-    username: String(formData.get('username') ?? ''),
-    password: String(formData.get('password') ?? ''),
-  };
+  const username = String(formData.get('username') ?? '');
+  const password = String(formData.get('password') ?? '');
+
+  if (isRegisterMode) {
+    const displayname = String(formData.get('displayname') ?? '');
+    try {
+      const response = await fetch(`${API_BASE}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, displayname, password }),
+      });
+
+      if (!response.ok) {
+        loginError.textContent = 'Error al registrar usuario (nombre de usuario duplicado)';
+        loginError.hidden = false;
+        return;
+      }
+
+      // Reset login form fields back to login state
+      isRegisterMode = false;
+      if (displaynameGroup && loginTitle && loginSubmitBtn && toggleAuthLink) {
+        displaynameGroup.style.display = 'none';
+        loginTitle.textContent = 'Ingresar';
+        loginSubmitBtn.textContent = 'Ingresar';
+        toggleAuthLink.textContent = '¿No tienes cuenta? Regístrate';
+      }
+    } catch (error) {
+      loginError.textContent = 'Error de conexión al registrar';
+      loginError.hidden = false;
+      return;
+    }
+  }
+
+  const payload = { username, password };
 
   try {
     const response = await fetch(`${API_BASE}/auth/login`, {
@@ -1941,6 +1996,450 @@ logoutBtn.addEventListener('click', async () => {
 
   showLogin();
 });
+
+// -----------------------------------------------------------------------------
+// Tracker Routing and Interface Boilerplate
+// -----------------------------------------------------------------------------
+
+const trackerShell = document.getElementById('tracker-shell') as HTMLElement;
+const goToTrackerBtn = document.getElementById('go-to-tracker-btn') as HTMLButtonElement;
+const goToAdminBtn = document.getElementById('go-to-admin-btn') as HTMLButtonElement;
+
+function renderRoute(): void {
+  if (!currentUser) {
+    showLogin();
+    return;
+  }
+
+  const path = window.location.pathname;
+
+  if (path === '/panel') {
+    if (currentUser.role === 'admin') {
+      appShell.style.display = 'block';
+      trackerShell.style.display = 'none';
+      currentUserEl.textContent = `${currentUser.username} (${currentUser.role})`;
+      if (goToTrackerBtn) goToTrackerBtn.style.display = 'inline-block';
+      showSection(activeTableKey, false);
+    } else {
+      // Redirect non-admins to main '/'
+      window.history.replaceState({}, '', '/');
+      renderRoute();
+    }
+  } else {
+    // Show tracker shell
+    appShell.style.display = 'none';
+    trackerShell.style.display = 'block';
+    
+    const trackerUserEl = document.getElementById('tracker-current-user');
+    if (trackerUserEl) {
+      trackerUserEl.textContent = `${currentUser.username} (${currentUser.role})`;
+    }
+    
+    const welcomeName = document.getElementById('welcome-name');
+    if (welcomeName) {
+      welcomeName.textContent = currentUser.username;
+    }
+
+    if (goToAdminBtn) {
+      goToAdminBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
+    }
+
+    // Default to active tab in sidebar
+    switchTrackerTab('dashboard');
+  }
+}
+
+if (goToTrackerBtn) {
+  goToTrackerBtn.addEventListener('click', () => {
+    window.history.pushState({}, '', '/');
+    renderRoute();
+  });
+}
+
+if (goToAdminBtn) {
+  goToAdminBtn.addEventListener('click', () => {
+    window.history.pushState({}, '', '/panel');
+    renderRoute();
+  });
+}
+
+const trackerLogoutBtn = document.getElementById('tracker-logout-btn');
+if (trackerLogoutBtn) {
+  trackerLogoutBtn.addEventListener('click', async () => {
+    await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    showLogin();
+  });
+}
+
+// Tab switcher controller
+const trackerTabs = {
+  dashboard: {
+    btn: document.getElementById('tab-dashboard-btn') as HTMLButtonElement,
+    section: document.getElementById('tracker-tab-dashboard') as HTMLElement
+  },
+  groups: {
+    btn: document.getElementById('tab-groups-btn') as HTMLButtonElement,
+    section: document.getElementById('tracker-tab-groups') as HTMLElement
+  },
+  friends: {
+    btn: document.getElementById('tab-friends-btn') as HTMLButtonElement,
+    section: document.getElementById('tracker-tab-friends') as HTMLElement
+  }
+};
+
+function switchTrackerTab(tabKey: 'dashboard' | 'groups' | 'friends') {
+  Object.entries(trackerTabs).forEach(([key, value]) => {
+    if (value.btn && value.section) {
+      const active = key === tabKey;
+      value.btn.classList.toggle('active', active);
+      value.section.style.display = active ? 'block' : 'none';
+    }
+  });
+
+  if (tabKey === 'dashboard') loadTrackerDashboard();
+  else if (tabKey === 'groups') loadTrackerGroups();
+  else if (tabKey === 'friends') loadTrackerFriends();
+}
+
+Object.entries(trackerTabs).forEach(([key, value]) => {
+  if (value.btn) {
+    value.btn.addEventListener('click', () => {
+      switchTrackerTab(key as any);
+    });
+  }
+});
+
+// Stubs for Tracker Data Loading
+async function loadTrackerDashboard() {
+  // TODO: Fetch user recent logs list from '/api/tracker/logs'
+  const recentLogsList = document.getElementById('recent-logs-list');
+  if (recentLogsList) {
+    recentLogsList.innerHTML = `
+      <div class="log-item">
+        <div class="log-info">
+          <div class="log-title">Morning 5k (Stub)</div>
+          <div class="log-meta">Exactas Runners (Stub) - Hoy</div>
+        </div>
+        <div class="log-value-badge">25 min</div>
+      </div>
+    `;
+  }
+}
+
+async function loadTrackerGroups() {
+  // TODO: Fetch active groups from '/api/tracker/groups'
+  const groupsList = document.getElementById('groups-list');
+  const groupDetailsView = document.getElementById('group-details-view');
+  
+  if (groupsList) {
+    groupsList.style.display = 'grid';
+    if (groupDetailsView) groupDetailsView.style.display = 'none';
+    
+    groupsList.innerHTML = `
+      <div class="group-card" id="stub-group-card">
+        <h3>Exactas Runners (Stub)</h3>
+        <p>Grupo para entusiastas del running en Exactas. ¡Registra tu progreso y compite!</p>
+        <div class="group-card-footer">
+          <span>Creado hace 6 días</span>
+          <span class="badge admin">Administrador</span>
+        </div>
+      </div>
+    `;
+    
+    const stubCard = document.getElementById('stub-group-card');
+    if (stubCard) {
+      stubCard.addEventListener('click', () => {
+        showTrackerGroupDetails('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Exactas Runners (Stub)', 'Grupo para entusiastas del running en Exactas. ¡Registra tu progreso y compite!');
+      });
+    }
+  }
+}
+
+function showTrackerGroupDetails(groupId: string, name: string, desc: string) {
+  const groupsList = document.getElementById('groups-list');
+  const groupDetailsView = document.getElementById('group-details-view');
+  
+  if (groupsList && groupDetailsView) {
+    groupsList.style.display = 'none';
+    groupDetailsView.style.display = 'block';
+    
+    const titleEl = document.getElementById('group-detail-title');
+    const descEl = document.getElementById('group-detail-desc');
+    if (titleEl) titleEl.textContent = name;
+    if (descEl) descEl.textContent = desc;
+    
+    // TODO: Fetch activities from '/api/tracker/groups/:groupId/activities'
+    const activitiesList = document.getElementById('group-activities-list');
+    if (activitiesList) {
+      activitiesList.innerHTML = `
+        <div class="activity-item">
+          <div class="activity-info">
+            <h4>Morning 5k (Stub)</h4>
+            <p>Run 5 kilometers around the campus</p>
+          </div>
+          <div class="activity-actions">
+            <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('1', 'Morning 5k (Stub)')">Registrar</button>
+            <button class="nav-toggle-btn" onclick="window.loadActivityComparisons('1', 'Morning 5k (Stub)')">Progreso</button>
+          </div>
+        </div>
+      `;
+    }
+    
+    // TODO: Fetch members from '/api/tracker/groups/:groupId/members'
+    const membersList = document.getElementById('group-members-list');
+    if (membersList) {
+      membersList.innerHTML = `
+        <div class="member-item">
+          <div class="member-info">
+            <span class="name">Alice Smith</span>
+            <span class="username">@alice</span>
+          </div>
+          <span class="badge admin">Admin</span>
+        </div>
+        <div class="member-item">
+          <div class="member-info">
+            <span class="name">Bob Johnson</span>
+            <span class="username">@bob</span>
+          </div>
+          <span class="badge member">Miembro</span>
+        </div>
+      `;
+    }
+  }
+}
+
+const backToGroupsBtn = document.getElementById('back-to-groups-btn');
+if (backToGroupsBtn) {
+  backToGroupsBtn.addEventListener('click', () => {
+    loadTrackerGroups();
+  });
+}
+
+async function loadTrackerFriends() {
+  // TODO: Fetch friend lists and request relationships from '/api/tracker/friends'
+  const friendsList = document.getElementById('friends-list');
+  const pendingList = document.getElementById('pending-friends-list');
+  
+  if (friendsList) {
+    friendsList.innerHTML = `
+      <div class="friend-card">
+        <div class="friend-avatar">BJ</div>
+        <h4 class="friend-name">Bob Johnson</h4>
+        <span class="friend-username">@bob</span>
+      </div>
+    `;
+  }
+  
+  if (pendingList) {
+    pendingList.innerHTML = `
+      <div class="pending-item">
+        <div class="pending-info">
+          <span class="name">Charlie Brown</span>
+          <span class="username">@charlie</span>
+        </div>
+        <div class="actions">
+          <button class="edit-btn" onclick="window.respondFriendRequest('charlie', 'accepted')">Aceptar</button>
+          <button class="delete-btn" onclick="window.respondFriendRequest('charlie', 'rejected')">Rechazar</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+// Reusable modal controllers
+const trackerModal = document.getElementById('tracker-modal') as HTMLElement;
+const modalTitle = document.getElementById('modal-title') as HTMLElement;
+const modalFormFields = document.getElementById('modal-form-fields') as HTMLElement;
+const trackerModalForm = document.getElementById('tracker-modal-form') as HTMLFormElement;
+
+function openTrackerModal(title: string, fieldsHtml: string, onSubmit: (e: Event) => void) {
+  if (trackerModal && modalTitle && modalFormFields) {
+    modalTitle.textContent = title;
+    modalFormFields.innerHTML = fieldsHtml;
+    trackerModal.style.display = 'flex';
+    
+    // Bind cancel action
+    const cancelBtn = document.getElementById('modal-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        trackerModal.style.display = 'none';
+      });
+    }
+
+    // Rebind submit action
+    const newForm = trackerModalForm.cloneNode(true) as HTMLFormElement;
+    trackerModalForm.parentNode?.replaceChild(newForm, trackerModalForm);
+    
+    const reBoundCancelBtn = newForm.querySelector('#modal-cancel-btn');
+    if (reBoundCancelBtn) {
+      reBoundCancelBtn.addEventListener('click', () => {
+        trackerModal.style.display = 'none';
+      });
+    }
+
+    newForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      onSubmit(e);
+      trackerModal.style.display = 'none';
+    });
+  }
+}
+
+const createGroupBtn = document.getElementById('create-group-btn');
+if (createGroupBtn) {
+  createGroupBtn.addEventListener('click', () => {
+    openTrackerModal(
+      'Crear Nuevo Grupo',
+      `
+        <div class="form-group">
+          <label for="new-group-name">Nombre del Grupo</label>
+          <input id="new-group-name" name="displayname" required>
+        </div>
+        <div class="form-group">
+          <label for="new-group-desc">Descripción</label>
+          <textarea id="new-group-desc" name="description"></textarea>
+        </div>
+      `,
+      (e) => {
+        // TODO: Send POST /api/tracker/groups with the new group details
+        const formData = new FormData(e.target as HTMLFormElement);
+        console.log('Boilerplate Group Create Submit:', formData.get('displayname'));
+        showSuccessMessage('Grupo creado con éxito (Stub)');
+      }
+    );
+  });
+}
+
+const addFriendTriggerBtn = document.getElementById('add-friend-trigger-btn');
+if (addFriendTriggerBtn) {
+  addFriendTriggerBtn.addEventListener('click', () => {
+    openTrackerModal(
+      'Agregar Amigo',
+      `
+        <div class="form-group">
+          <label for="friend-username-input">Usuario (@)</label>
+          <input id="friend-username-input" name="username" required>
+        </div>
+      `,
+      (e) => {
+        // TODO: Send POST /api/tracker/friends/request
+        const formData = new FormData(e.target as HTMLFormElement);
+        console.log('Boilerplate Friend Request Submit:', formData.get('username'));
+        showSuccessMessage('Solicitud enviada con éxito (Stub)');
+      }
+    );
+  });
+}
+
+const inviteMemberBtn = document.getElementById('invite-member-btn');
+if (inviteMemberBtn) {
+  inviteMemberBtn.addEventListener('click', () => {
+    openTrackerModal(
+      'Invitar Miembro',
+      `
+        <div class="form-group">
+          <label for="invite-username-input">Usuario (@)</label>
+          <input id="invite-username-input" name="username" required>
+        </div>
+      `,
+      (e) => {
+        // TODO: Send POST /api/tracker/groups/:groupId/invite
+        const formData = new FormData(e.target as HTMLFormElement);
+        console.log('Boilerplate Group Invite Submit:', formData.get('username'));
+        showSuccessMessage('Invitación enviada con éxito (Stub)');
+      }
+    );
+  });
+}
+
+const addActivityBtn = document.getElementById('add-activity-btn');
+if (addActivityBtn) {
+  addActivityBtn.addEventListener('click', () => {
+    openTrackerModal(
+      'Nueva Actividad',
+      `
+        <div class="form-group">
+          <label for="act-title">Título</label>
+          <input id="act-title" name="title" required>
+        </div>
+        <div class="form-group">
+          <label for="act-body">Descripción</label>
+          <textarea id="act-body" name="body"></textarea>
+        </div>
+      `,
+      (e) => {
+        // TODO: Send POST /api/tracker/groups/:groupId/activities
+        const formData = new FormData(e.target as HTMLFormElement);
+        console.log('Boilerplate Activity Create Submit:', formData.get('title'));
+        showSuccessMessage('Actividad creada con éxito (Stub)');
+      }
+    );
+  });
+}
+
+// Window globally exposed inline callbacks
+(window as any).openLogActivityModal = (activityId: string, activityTitle: string) => {
+  openTrackerModal(
+    `Registrar Progreso: ${activityTitle}`,
+    `
+      <div class="form-group">
+        <label for="log-value">Valor / Progreso (numérico)</label>
+        <input type="number" id="log-value" name="value" required min="0">
+      </div>
+      <div class="form-group">
+        <label for="log-fecha">Fecha</label>
+        <input type="date" id="log-fecha" name="fecha" value="${new Date().toISOString().slice(0,10)}" required>
+      </div>
+      <div class="form-group">
+        <label for="log-comment">Comentario</label>
+        <textarea id="log-comment" name="commentar"></textarea>
+      </div>
+    `,
+    (e) => {
+      // TODO: Send POST /api/tracker/activities/:activityId/records
+      const formData = new FormData(e.target as HTMLFormElement);
+      console.log('Boilerplate Log Submit:', activityId, formData.get('value'));
+      showSuccessMessage('Registro guardado con éxito (Stub)');
+    }
+  );
+};
+
+(window as any).loadActivityComparisons = (activityId: string, activityTitle: string) => {
+  // TODO: Fetch comparisons from '/api/tracker/activities/:activityId/comparisons'
+  const container = document.getElementById('group-comparison-container');
+  if (container) {
+    container.innerHTML = `
+      <h4>Progreso de Miembros: ${activityTitle}</h4>
+      <div class="comparison-row">
+        <div class="comparison-label">
+          <span>Alice Smith (Tú)</span>
+          <span>25 (100%)</span>
+        </div>
+        <div class="comparison-bar-bg">
+          <div class="comparison-bar-fill" style="width: 100%;"></div>
+        </div>
+      </div>
+      <div class="comparison-row">
+        <div class="comparison-label">
+          <span>Bob Johnson</span>
+          <span>28 (112%)</span>
+        </div>
+        <div class="comparison-bar-bg">
+          <div class="comparison-bar-fill" style="width: 100%;"></div>
+        </div>
+      </div>
+    `;
+  }
+};
+
+(window as any).respondFriendRequest = (username: string, action: string) => {
+  // TODO: Send POST /api/tracker/friends/respond
+  console.log('Boilerplate respond Friend Request:', username, action);
+  showSuccessMessage(`Solicitud ${action === 'accepted' ? 'aceptada' : 'rechazada'} (Stub)`);
+};
 
 async function initialize(): Promise<void> {
   createTableNavButtons();

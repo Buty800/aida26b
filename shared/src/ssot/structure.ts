@@ -236,7 +236,7 @@ export const structure = {
           foreignKey: {
             table: 'groups',
             valueField: 'id',
-            labelField: 'displayName',
+            labelField: 'displayname',
           },
         },
         status: {

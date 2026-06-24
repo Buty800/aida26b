@@ -12,6 +12,7 @@ import { getHandler } from './routes/get';
 import { putHandler } from './routes/put';
 import { postHandler } from './routes/post';
 import { deleteHandler } from './routes/delete';
+import { registerTrackerRoutes } from './routes/tracker';
 
 // Load environment variables before reading process.env
 dotenv.config();
@@ -408,8 +409,11 @@ app.post(
   }
 );
 
-// Generic academic API routes
-app.get('/api/:tableName', requireAuth, requirePasswordReady, async (req, res) => {
+// Register Tracker endpoints
+registerTrackerRoutes(app, pool, requireAuth, requirePasswordReady);
+
+// Generic academic API routes (restricted to admins)
+app.get('/api/:tableName', requireAuth, requirePasswordReady, requireAdmin, async (req, res) => {
   return getHandler(req, res, pool);
 });
 
@@ -417,7 +421,7 @@ app.post(
   '/api/:tableName',
   requireAuth,
   requirePasswordReady,
-  requireAcademicWrite,
+  requireAdmin,
   async (req, res) => {
     return postHandler(req, res, pool);
   }
@@ -427,7 +431,7 @@ app.put(
   '/api/:tableName',
   requireAuth,
   requirePasswordReady,
-  requireAcademicWrite,
+  requireAdmin,
   async (req, res) => {
     return putHandler(req, res, pool);
   }
@@ -437,7 +441,7 @@ app.delete(
   '/api/:tableName',
   requireAuth,
   requirePasswordReady,
-  requireAcademicWrite,
+  requireAdmin,
   async (req, res) => {
     return deleteHandler(req, res, pool);
   }

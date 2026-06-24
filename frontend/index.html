@@ -17,12 +17,19 @@
                     <label id="login-username-label" for="login-username">Usuario</label>
                     <input id="login-username" name="username" autocomplete="username" required>
                 </div>
+                <div class="form-group" id="displayname-group" style="display: none;">
+                    <label id="login-displayname-label" for="login-displayname">Nombre Completo</label>
+                    <input id="login-displayname" name="displayname">
+                </div>
                 <div class="form-group">
                     <label id="login-password-label" for="login-password">Contraseña</label>
                     <input id="login-password" name="password" type="password" autocomplete="current-password" required>
                 </div>
                 <p id="login-error" class="message" hidden></p>
                 <button id="login-submit-btn" type="submit" class="add-btn">Ingresar</button>
+                <p class="toggle-auth-text" style="margin-top: 15px; text-align: center;">
+                    <a href="#" id="toggle-auth-link">¿No tienes cuenta? Regístrate</a>
+                </p>
             </form>
         </section>
 
@@ -42,10 +49,12 @@
             </form>
         </section>
 
+        <!-- Admin DB Manager Shell -->
         <div id="app-shell" style="display: none;">
             <div class="top-bar">
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <span id="current-user"></span>
+                    <button id="go-to-tracker-btn" class="nav-toggle-btn">Ir al Tracker</button>
                     <div id="admin-actions" class="admin-actions" hidden>
                         <button id="add-user-btn" class="add-btn" style="margin-bottom: 0;">Agregar usuario de sistema</button>
                     </div>
@@ -74,6 +83,159 @@
                     </table>
                 </div>
             </div>
+        </div>
+
+        <!-- Tracker App Shell (Stubs/Boilerplate) -->
+        <div id="tracker-shell" style="display: none;">
+            <div class="top-bar">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <span class="logo-text">Tracker App</span>
+                    <span id="tracker-current-user"></span>
+                    <button id="go-to-admin-btn" class="nav-toggle-btn" style="display: none;">Panel de Control</button>
+                </div>
+                <button id="tracker-logout-btn" class="logout-btn">Salir</button>
+            </div>
+            
+            <div class="tracker-layout">
+                <nav class="tracker-sidebar">
+                    <button id="tab-dashboard-btn" class="sidebar-btn active">Resumen</button>
+                    <button id="tab-groups-btn" class="sidebar-btn">Mis Grupos</button>
+                    <button id="tab-friends-btn" class="sidebar-btn">Mis Amigos</button>
+                </nav>
+                
+                <main class="tracker-content">
+                    <!-- Dashboard Tab -->
+                    <section id="tracker-tab-dashboard" class="tracker-tab active">
+                        <div class="tracker-card welcome-card">
+                            <h2>¡Hola, <span id="welcome-name">Usuario</span>!</h2>
+                            <p>Bienvenido a tu Tracker personal. Sigue tu progreso y compite amigablemente con tus amigos.</p>
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <span class="stat-label">Grupos Activos</span>
+                                <span id="stat-groups-count" class="stat-value">1</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label">Amigos</span>
+                                <span id="stat-friends-count" class="stat-value">1</span>
+                            </div>
+                            <div class="stat-card">
+                                <span class="stat-label">Registros Totales</span>
+                                <span id="stat-logs-count" class="stat-value">1</span>
+                            </div>
+                        </div>
+
+                        <div class="tracker-card">
+                            <h3>Registros Recientes</h3>
+                            <div class="recent-logs-list" id="recent-logs-list">
+                                <p class="empty-message">Boilerplate: Historial de registros recientes.</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Groups Tab -->
+                    <section id="tracker-tab-groups" class="tracker-tab" style="display: none;">
+                        <div class="tracker-header">
+                            <h2>Mis Grupos</h2>
+                            <button id="create-group-btn" class="action-btn">Crear Grupo +</button>
+                        </div>
+                        
+                        <div class="groups-grid" id="groups-list">
+                            <p class="empty-message">Boilerplate: Lista de grupos a los que perteneces.</p>
+                        </div>
+                        
+                        <!-- Group Details View (hidden by default) -->
+                        <div id="group-details-view" style="display: none;" class="group-details-container">
+                            <button id="back-to-groups-btn" class="back-link">← Volver a grupos</button>
+                            <div class="group-header-card">
+                                <h2 id="group-detail-title">Nombre del Grupo</h2>
+                                <p id="group-detail-desc">Descripción del grupo</p>
+                            </div>
+                            
+                            <div class="group-columns">
+                                <div class="group-main-column">
+                                    <div class="tracker-card">
+                                        <div class="card-header">
+                                            <h3>Actividades</h3>
+                                            <button id="add-activity-btn" class="action-btn-sm">Nueva Actividad +</button>
+                                        </div>
+                                        <div id="group-activities-list" class="activities-list">
+                                            <p class="empty-message">Boilerplate: Actividades del grupo.</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="tracker-card">
+                                        <h3>Comparación de Progreso</h3>
+                                        <div id="group-comparison-container" class="comparison-container">
+                                            <p class="empty-message">Selecciona una actividad para ver la comparación.</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="group-side-column">
+                                    <div class="tracker-card">
+                                        <div class="card-header">
+                                            <h3>Miembros</h3>
+                                            <button id="invite-member-btn" class="action-btn-sm">Invitar +</button>
+                                        </div>
+                                        <div id="group-members-list" class="members-list">
+                                            <p class="empty-message">Boilerplate: Miembros del grupo.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Friends Tab -->
+                    <section id="tracker-tab-friends" class="tracker-tab" style="display: none;">
+                        <div class="tracker-header">
+                            <h2>Amigos</h2>
+                            <button id="add-friend-trigger-btn" class="action-btn">Agregar Amigo +</button>
+                        </div>
+
+                        <div class="friends-layout">
+                            <div class="friends-main">
+                                <div class="tracker-card">
+                                    <h3>Mis Amigos</h3>
+                                    <div id="friends-list" class="friends-grid-list">
+                                        <p class="empty-message">Boilerplate: Lista de amigos.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="friends-side">
+                                <div class="tracker-card">
+                                    <h3>Solicitudes Pendientes</h3>
+                                    <div id="pending-friends-list" class="pending-list">
+                                        <p class="empty-message">Boilerplate: Solicitudes pendientes.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </main>
+            </div>
+        </div>
+
+        <!-- Reusable Modal Card Overlay -->
+        <div id="tracker-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-card">
+                <h3 id="modal-title">Título Modal</h3>
+                <form id="tracker-modal-form">
+                    <div id="modal-form-fields"></div>
+                    <p id="modal-error" class="message error" hidden></p>
+                    <div class="modal-actions">
+                        <button type="button" id="modal-cancel-btn" class="cancel-btn">Cancelar</button>
+                        <button type="submit" id="modal-submit-btn" class="submit-btn">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="successOutputInfoContainer invisible">
+            <span class="successOutputInfo"></span>
         </div>
     </div>
 </body>
