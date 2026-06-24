@@ -4,6 +4,7 @@ import { Pool } from 'pg';
 import { structure } from '../../../shared/src/ssot/structure';
 import type { TableKey, Response } from '../../../shared/src/types/types';
 import { getPkFields } from '../../../shared/src/utils/utils';
+import * as auth from '../auth';
 
 import {
   getEntityName,
@@ -42,6 +43,13 @@ export async function putHandler(
 
   if (sendErrorsIfInvalid(res, validatedBody)) {
     return;
+  }
+
+  if (tableName === 'users' && validatedBody.data && typeof (validatedBody.data as any).password === 'string') {
+    const password = (validatedBody.data as any).password;
+    if (!auth.isHashed(password)) {
+      (validatedBody.data as any).password = await auth.hashPasswordForUsersTable(password);
+    }
   }
 
   const validatedPk = validateOnlyPk(tableName, req.query);

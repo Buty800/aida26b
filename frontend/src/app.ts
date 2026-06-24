@@ -15,7 +15,7 @@ import {
 } from '@shared/types/types';
 import { getPkFields } from '@shared/utils/utils';
 import { validateField } from '@shared/validation/validate';
-import '../styles/style.css';
+import '../styles/styles.css';
 
 const API_BASE = '/api';
 const PAGE_SIZE = 20;
@@ -696,7 +696,6 @@ filterContainer.style.display = 'flex';
 filterContainer.style.gap = '10px';
 filterContainer.style.flexWrap = 'wrap';
 filterContainer.style.marginBottom = '15px';
-sharedTable.parentNode?.insertBefore(filterContainer, sharedTable);
 
 const paginationContainer = document.createElement('div');
 paginationContainer.className = 'pagination-container';
@@ -704,7 +703,10 @@ paginationContainer.style.marginTop = '15px';
 paginationContainer.style.display = 'flex';
 paginationContainer.style.gap = '10px';
 paginationContainer.style.alignItems = 'center';
-sharedTable.parentNode?.insertBefore(paginationContainer, sharedTable.nextSibling);
+
+const tableWrapper = sharedTable.closest('.table-wrapper') || sharedTable;
+tableWrapper.parentNode?.insertBefore(filterContainer, tableWrapper);
+tableWrapper.parentNode?.insertBefore(paginationContainer, tableWrapper.nextSibling);
 
 function renderAnyTable<K extends TableKey>(
   tableKey: K,
@@ -767,7 +769,12 @@ function renderAnyTable<K extends TableKey>(
 
     columnNames.forEach((name) => {
       const td = document.createElement('td');
-      td.textContent = String(record[name] ?? '');
+      td.className = name;
+      const val = String(record[name] ?? '');
+      td.textContent = val;
+      if (val.length > 20) {
+        td.title = val;
+      }
       row.appendChild(td);
     });
 

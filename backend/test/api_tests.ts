@@ -56,12 +56,14 @@ test('POST & GET & PUT & DELETE /users', async () => {
     const createBody = await createRes.json() as any;
     assert.strictEqual(createBody.success, true);
     assert.strictEqual(createBody.data.username, 'johndoe');
+    assert.ok(createBody.data.password.startsWith('scrypt$'));
 
     // 2. Fetch the user
     const getRes = await fetch(`${API_BASE}/users?username=johndoe`);
     assert.strictEqual(getRes.status, 200);
     const getBody = await getRes.json() as any;
     assert.strictEqual(getBody.data.username, 'johndoe');
+    assert.ok(getBody.data.password.startsWith('scrypt$'));
 
     // 3. Update the user (PUT)
     const updateRes = await fetch(`${API_BASE}/users?username=johndoe`, {
@@ -74,6 +76,14 @@ test('POST & GET & PUT & DELETE /users', async () => {
         })
     });
     assert.strictEqual(updateRes.status, 202);
+
+    // 3b. Fetch again to verify updated password is also hashed
+    const getRes2 = await fetch(`${API_BASE}/users?username=johndoe`);
+    assert.strictEqual(getRes2.status, 200);
+    const getBody2 = await getRes2.json() as any;
+    assert.strictEqual(getBody2.data.username, 'johndoe');
+    assert.ok(getBody2.data.password.startsWith('scrypt$'));
+    assert.notStrictEqual(getBody2.data.password, getBody.data.password);
 
     // 4. Delete the user
     const deleteRes = await fetch(`${API_BASE}/users?username=johndoe`, {

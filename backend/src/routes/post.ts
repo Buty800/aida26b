@@ -3,6 +3,7 @@ import { Pool } from 'pg';
 
 import { structure } from '../../../shared/src/ssot/structure';
 import type { TableKey } from '../../../shared/src/types/types';
+import * as auth from '../auth';
 
 import {
   getEntityName,
@@ -40,6 +41,13 @@ export async function postHandler(
 
   if (sendErrorsIfInvalid(res, validated)) {
     return;
+  }
+
+  if (tableName === 'users' && validated.data && typeof (validated.data as any).password === 'string') {
+    const password = (validated.data as any).password;
+    if (!auth.isHashed(password)) {
+      (validated.data as any).password = await auth.hashPasswordForUsersTable(password);
+    }
   }
 
   const notDerivableFields = getNotDerivableFields(tableName);

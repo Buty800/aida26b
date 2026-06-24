@@ -146,6 +146,13 @@ tr:hover {
     background-color: var(--surface-2);
 }
 
+td.password {
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 button {
     padding: 8px 14px;
 

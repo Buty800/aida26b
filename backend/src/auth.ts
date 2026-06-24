@@ -26,6 +26,15 @@ export async function hashPassword(password: string, salt = crypto.randomBytes(1
   return { passwordHash: key.toString('hex'), passwordSalt: salt };
 }
 
+export function isHashed(password: string): boolean {
+  return password.startsWith('scrypt$') || password.startsWith('pbkdf2:');
+}
+
+export async function hashPasswordForUsersTable(password: string): Promise<string> {
+  const { passwordHash, passwordSalt } = await hashPassword(password);
+  return `scrypt$${passwordSalt}$${passwordHash}`;
+}
+
 export async function verifyPassword(password: string, salt: string, expectedHash: string) {
   const { passwordHash } = await hashPassword(password, salt);
   const actual = Buffer.from(passwordHash, 'hex');

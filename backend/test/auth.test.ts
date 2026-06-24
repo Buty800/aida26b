@@ -205,6 +205,7 @@ test('editor can create a business user but cannot manage admin users', async ()
       body: { username: 'grace', displayname: 'Grace Hopper', password: 'userpassword' },
     });
     assert.equal(createUser.status, 201);
+    assert.ok(db.business_users[0].password.startsWith('scrypt$'));
 
     const createAdminUser = await request(baseUrl, '/api/admin/users', { method: 'POST', cookie, body: { username: 'other', password: 'otherpass', role: 'reader' } });
     assert.equal(createAdminUser.status, 403);
