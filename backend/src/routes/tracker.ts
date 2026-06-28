@@ -1,5 +1,6 @@
 import express from 'express';
 import { Pool } from 'pg';
+import * as auth from '../auth';
 
 export function registerTrackerRoutes(
   app: express.Express,
@@ -24,11 +25,135 @@ export function registerTrackerRoutes(
     //    - In auth.users: set role = 'editor', is_active = true, must_change_password = false.
     //    - In public.users: insert username, displayname, and hashed password.
     // 5. Return success status code 201 with created user details.
-    return res.status(201).json({
-      success: true,
-      message: 'Registration boilerplate stub: User registered successfully (not persistent)',
-      user: { username: req.body.username || 'dummy_user', role: 'editor' }
-    });
+  
+    const username =
+      typeof req.body.username === 'string'
+        ? req.body.username.trim()
+        : '';
+
+    const displayname =
+      typeof req.body.displayname === 'string'
+        ? req.body.displayname.trim()
+        : '';
+
+    const password =
+      typeof req.body.password === 'string'
+        ? req.body.password
+        : '';
+
+    // Validate input
+    if (!/^[A-Za-z0-9_]+$/.test(username)) {
+      return res.status(400).json({
+        error: 'Username may only contain letters, numbers and underscores.',
+      });
+    }
+
+    if (!displayname) {
+      return res.status(400).json({
+        error: 'Display name is required.',
+      });
+    }
+
+    if (password.length < 8) {
+      return res.status(400).json({
+        error: 'Password must contain at least 8 characters.',
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      // Check username in auth.users
+      const authExists = await client.query(
+        'SELECT 1 FROM auth.users WHERE username = $1',
+        [username]
+      );
+
+      if (authExists.rowCount) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'Username already exists.',
+        });
+      }
+
+      // Check username in public.users
+      const publicExists = await client.query(
+        'SELECT 1 FROM public.users WHERE username = $1',
+        [username]
+      );
+
+      if (publicExists.rowCount) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          error: 'Username already exists.',
+        });
+      }
+
+      // Hashes
+      const { passwordHash, passwordSalt } =
+        await auth.hashPassword(password);
+
+      const trackerPassword =
+        await auth.hashPasswordForUsersTable(password);
+
+      // Insert into auth.users
+      await client.query(
+        `INSERT INTO auth.users
+          (
+            username,
+            email,
+            password_hash,
+            password_salt,
+            role,
+            is_active,
+            must_change_password
+          )
+        VALUES
+          ($1, NULL, $2, $3, 'editor', true, false)`,
+        [
+          username,
+          passwordHash,
+          passwordSalt,
+        ]
+      );
+
+      // Insert into public.users
+      await client.query(
+        `INSERT INTO public.users
+          (
+            username,
+            displayname,
+            password
+          )
+        VALUES
+          ($1, $2, $3)`,
+        [
+          username,
+          displayname,
+          trackerPassword,
+        ]
+      );
+
+      await client.query('COMMIT');
+
+      return res.status(201).json({
+        user: {
+          username,
+          displayname,
+          role: 'editor',
+        },
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error(error);
+      return res.status(500).json({
+        error: 'Internal server error',
+      });
+    } finally {
+      client.release();
+    }
   });
 
   // GET /api/tracker/users
