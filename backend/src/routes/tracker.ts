@@ -570,17 +570,57 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/activities/:activityId/comparisons
   app.get('/api/tracker/activities/:activityId/comparisons', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Implement task comparison progress
-    // 1. Permission Check: Verify current user is an active member of the group this activity belongs to.
-    // 2. Query and aggregate logged values (SUM of value) for the specified activity across all active group members, grouped by user.
-    return res.json({
-      success: true,
-      data: [
-        { username: 'alice', displayname: 'Alice Smith', total_value: 25 },
-        { username: 'bob', displayname: 'Bob Johnson', total_value: 28 }
-      ]
-    });
+    // Summary: Compares the total logged progress (sum of values) for an activity across all active members of its group.
+    const { activityId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      // 1. Find the group that the activity belongs to
+      const trackCheck = await pool.query(
+        'SELECT "group" FROM track WHERE id = $1',
+        [activityId]
+      );
+
+      if (trackCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Activity not found' });
+      }
+
+      const groupId = trackCheck.rows[0].group;
+
+      // 2. Permission Check: Verify current user is an active member of this group
+      const memberCheck = await pool.query(
+        `SELECT 1 FROM user_group 
+         WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ error: "Must be an active member of the activity's group to view comparisons" });
+      }
+
+      // 3. Query and aggregate logged values (SUM of value) for the specified activity across all active group members, grouped by user
+      const result = await pool.query(
+        `SELECT 
+           u.username,
+           u.displayname,
+           COALESCE(SUM(l.value), 0)::INTEGER AS total_value
+         FROM user_group ug
+         JOIN users u ON ug.user_id = u.username
+         LEFT JOIN log l ON l.user_id = ug.user_id AND l.track = $1
+         WHERE ug.group_id = $2 AND ug.status = 'active'
+         GROUP BY u.username, u.displayname
+         ORDER BY total_value DESC, u.username ASC`,
+        [activityId, groupId]
+      );
+
+      return res.json({
+        success: true,
+        data: result.rows
+      });
+    } catch (error) {
+      console.error('Error fetching activity comparisons:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // GET /api/tracker/friends

@@ -347,6 +347,35 @@ class FakeDb {
       this.friends_list = this.friends_list.filter((f) => !(f.friend1 === f1 && f.friend2 === f2));
       return { rowCount: len - this.friends_list.length };
     }
+    if (sql.startsWith('SELECT u.username, u.displayname, COALESCE(SUM(l.value), 0)::INTEGER AS total_value FROM user_group ug')) {
+      const trackId = Number(params[0]);
+      const groupId = params[1];
+
+      // 1. Get all active members of the group
+      const activeMembers = this.user_groups.filter((ug) => ug.group_id === groupId && ug.status === 'active');
+
+      const rows = activeMembers.map((ug) => {
+        const u = this.users.find((u) => u.username === ug.user_id) || this.business_users.find((u) => u.username === ug.user_id);
+        
+        // 2. Sum the logs for this track and user
+        const logsForUserAndTrack = this.logs.filter((l) => l.user_id === ug.user_id && Number(l.track) === trackId);
+        const totalValue = logsForUserAndTrack.reduce((sum, l) => sum + Number(l.value), 0);
+
+        return {
+          username: ug.user_id,
+          displayname: u ? (u.displayname || u.displayName || u.username) : ug.user_id,
+          total_value: totalValue
+        };
+      })
+      .sort((a, b) => {
+        if (b.total_value !== a.total_value) {
+          return b.total_value - a.total_value;
+        }
+        return a.username.localeCompare(b.username);
+      });
+
+      return { rows };
+    }
 
     throw new Error(`Unhandled query: ${sql}`);
   }
@@ -1001,5 +1030,107 @@ test('GET, POST /friends/request, and POST /friends/respond endpoints work as ex
     assert.equal(readerFriendsAfter.body.data.friends.length, 1);
     assert.equal(readerFriendsAfter.body.data.friends[0].username, 'editor');
     assert.equal(readerFriendsAfter.body.data.pendingReceived.length, 0);
+  });
+});
+
+test('GET /api/tracker/activities/:activityId/comparisons compares total progress across active members', async () => {
+  const db = await makeDb();
+  db.business_users = [
+    { username: 'editor', displayName: 'Editor User', password: '...', created_at: new Date().toISOString() },
+    { username: 'reader', displayName: 'Reader User', password: '...', created_at: new Date().toISOString() }
+  ];
+
+  await withServer(db, async (baseUrl) => {
+    // 1. Log in
+    const cookieEditor = await login(baseUrl, 'editor', 'editorpass');
+    const cookieReader = await login(baseUrl, 'reader', 'readerpass');
+
+    // 2. Editor creates a group
+    const createRes = await request(baseUrl, '/api/tracker/groups', {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        displayname: 'Workout Club',
+        description: null
+      }
+    });
+    const groupId = createRes.body.data.id;
+
+    // 3. Editor creates an activity
+    const successfulPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        title: 'Morning Jog',
+        body: 'Run 5km',
+        status: 'active'
+      }
+    });
+    const activityId = successfulPost.body.data.id;
+
+    // 4. Reader (not group member) attempts to view comparisons -> should return 403
+    const forbiddenGet = await request(baseUrl, `/api/tracker/activities/${activityId}/comparisons`, {
+      cookie: cookieReader
+    });
+    assert.equal(forbiddenGet.status, 403);
+
+    // 5. Editor sends invite to Reader
+    await request(baseUrl, `/api/tracker/groups/${groupId}/invite`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: { username: 'reader' }
+    });
+
+    // 6. Reader accepts invite
+    await request(baseUrl, `/api/tracker/groups/${groupId}/invite/respond`, {
+      method: 'POST',
+      cookie: cookieReader,
+      body: { action: 'accepted' }
+    });
+
+    // 7. Reader (now active member) views comparisons -> should return 200, both users have total_value 0
+    const comparisonsInitial = await request(baseUrl, `/api/tracker/activities/${activityId}/comparisons`, {
+      cookie: cookieReader
+    });
+    assert.equal(comparisonsInitial.status, 200);
+    assert.equal(comparisonsInitial.body.success, true);
+    assert.equal(comparisonsInitial.body.data.length, 2);
+    assert.equal(comparisonsInitial.body.data[0].username, 'editor');
+    assert.equal(comparisonsInitial.body.data[0].total_value, 0);
+    assert.equal(comparisonsInitial.body.data[1].username, 'reader');
+    assert.equal(comparisonsInitial.body.data[1].total_value, 0);
+
+    // 8. Editor logs a record of value 15
+    await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        value: 15,
+        fecha: new Date().toISOString(),
+        commentar: 'Jog 15k'
+      }
+    });
+
+    // 9. Editor logs another record of value 10
+    await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        value: 10,
+        fecha: new Date().toISOString(),
+        commentar: 'Jog 10k'
+      }
+    });
+
+    // 10. GET comparisons again -> Editor should have total_value 25 and Reader 0, sorted by total_value DESC
+    const comparisonsFinal = await request(baseUrl, `/api/tracker/activities/${activityId}/comparisons`, {
+      cookie: cookieReader
+    });
+    assert.equal(comparisonsFinal.status, 200);
+    assert.equal(comparisonsFinal.body.data.length, 2);
+    assert.equal(comparisonsFinal.body.data[0].username, 'editor');
+    assert.equal(comparisonsFinal.body.data[0].total_value, 25);
+    assert.equal(comparisonsFinal.body.data[1].username, 'reader');
+    assert.equal(comparisonsFinal.body.data[1].total_value, 0);
   });
 });
