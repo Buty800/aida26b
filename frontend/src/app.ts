@@ -2112,140 +2112,261 @@ Object.entries(trackerTabs).forEach(([key, value]) => {
   }
 });
 
-// Stubs for Tracker Data Loading
+let currentGroupId: string | null = null;
+let currentGroupRole: string | null = null;
+
+// Helper functions for Tracker Data Loading
 async function loadTrackerDashboard() {
-  // TODO: Fetch user recent logs list from '/api/tracker/logs'
   const recentLogsList = document.getElementById('recent-logs-list');
-  if (recentLogsList) {
-    recentLogsList.innerHTML = `
+  if (!recentLogsList) return;
+
+  try {
+    const response = await apiFetch('/tracker/logs');
+    if (!response.ok) {
+      recentLogsList.innerHTML = `<p class="error-text">Error al cargar registros</p>`;
+      return;
+    }
+    const resAnswer = await response.json();
+    if (!resAnswer.success) {
+      recentLogsList.innerHTML = `<p class="error-text">${resAnswer.error || 'Error'}</p>`;
+      return;
+    }
+
+    const logs = resAnswer.data || [];
+    if (logs.length === 0) {
+      recentLogsList.innerHTML = `<p class="empty-text">No hay registros recientes</p>`;
+      return;
+    }
+
+    recentLogsList.innerHTML = logs.map((log: any) => `
       <div class="log-item">
         <div class="log-info">
-          <div class="log-title">Morning 5k (Stub)</div>
-          <div class="log-meta">Exactas Runners (Stub) - Hoy</div>
+          <div class="log-title">${log.activity_title}</div>
+          <div class="log-meta">${log.group_name} - ${new Date(log.fecha).toLocaleDateString()}</div>
         </div>
-        <div class="log-value-badge">25 min</div>
+        <div class="log-value-badge">${log.value}</div>
       </div>
-    `;
+    `).join('');
+  } catch (error) {
+    console.error('Dashboard load failed:', error);
+    recentLogsList.innerHTML = `<p class="error-text">Error de conexión</p>`;
   }
 }
 
 async function loadTrackerGroups() {
-  // TODO: Fetch active groups from '/api/tracker/groups'
   const groupsList = document.getElementById('groups-list');
   const groupDetailsView = document.getElementById('group-details-view');
-  
-  if (groupsList) {
-    groupsList.style.display = 'grid';
-    if (groupDetailsView) groupDetailsView.style.display = 'none';
-    
-    groupsList.innerHTML = `
-      <div class="group-card" id="stub-group-card">
-        <h3>Exactas Runners (Stub)</h3>
-        <p>Grupo para entusiastas del running en Exactas. ¡Registra tu progreso y compite!</p>
+  if (!groupsList) return;
+
+  groupsList.style.display = 'grid';
+  if (groupDetailsView) groupDetailsView.style.display = 'none';
+
+  try {
+    const response = await apiFetch('/tracker/groups');
+    if (!response.ok) {
+      groupsList.innerHTML = `<p class="error-text">Error al cargar grupos</p>`;
+      return;
+    }
+    const resAnswer = await response.json();
+    if (!resAnswer.success) {
+      groupsList.innerHTML = `<p class="error-text">${resAnswer.error || 'Error'}</p>`;
+      return;
+    }
+
+    const groups = resAnswer.data || [];
+    if (groups.length === 0) {
+      groupsList.innerHTML = `<p class="empty-text">No perteneces a ningún grupo aún.</p>`;
+      return;
+    }
+
+    groupsList.innerHTML = groups.map((group: any) => `
+      <div class="group-card" id="group-card-${group.id}" style="cursor: pointer;">
+        <h3>${group.displayname}</h3>
+        <p>${group.description || 'Sin descripción'}</p>
         <div class="group-card-footer">
-          <span>Creado hace 6 días</span>
-          <span class="badge admin">Administrador</span>
+          <span>Rol: ${group.role === 'admin' ? 'Administrador' : 'Miembro'}</span>
+          <span class="badge ${group.role === 'admin' ? 'admin' : 'member'}">${group.status === 'active' ? 'Activo' : 'Pendiente'}</span>
         </div>
       </div>
-    `;
-    
-    const stubCard = document.getElementById('stub-group-card');
-    if (stubCard) {
-      stubCard.addEventListener('click', () => {
-        showTrackerGroupDetails('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Exactas Runners (Stub)', 'Grupo para entusiastas del running en Exactas. ¡Registra tu progreso y compite!');
-      });
-    }
+    `).join('');
+
+    groups.forEach((group: any) => {
+      const card = document.getElementById(`group-card-${group.id}`);
+      if (card) {
+        card.addEventListener('click', () => {
+          showTrackerGroupDetails(group.id, group.displayname, group.description || '', group.role);
+        });
+      }
+    });
+  } catch (error) {
+    console.error('Groups load failed:', error);
+    groupsList.innerHTML = `<p class="error-text">Error de conexión</p>`;
   }
 }
 
-function showTrackerGroupDetails(groupId: string, name: string, desc: string) {
+async function showTrackerGroupDetails(groupId: string, name: string, desc: string, role: string) {
+  currentGroupId = groupId;
+  currentGroupRole = role;
+
   const groupsList = document.getElementById('groups-list');
   const groupDetailsView = document.getElementById('group-details-view');
-  
-  if (groupsList && groupDetailsView) {
-    groupsList.style.display = 'none';
-    groupDetailsView.style.display = 'block';
-    
-    const titleEl = document.getElementById('group-detail-title');
-    const descEl = document.getElementById('group-detail-desc');
-    if (titleEl) titleEl.textContent = name;
-    if (descEl) descEl.textContent = desc;
-    
-    // TODO: Fetch activities from '/api/tracker/groups/:groupId/activities'
-    const activitiesList = document.getElementById('group-activities-list');
-    if (activitiesList) {
-      activitiesList.innerHTML = `
-        <div class="activity-item">
-          <div class="activity-info">
-            <h4>Morning 5k (Stub)</h4>
-            <p>Run 5 kilometers around the campus</p>
-          </div>
-          <div class="activity-actions">
-            <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('1', 'Morning 5k (Stub)')">Registrar</button>
-            <button class="nav-toggle-btn" onclick="window.loadActivityComparisons('1', 'Morning 5k (Stub)')">Progreso</button>
-          </div>
-        </div>
-      `;
+  if (!groupsList || !groupDetailsView) return;
+
+  groupsList.style.display = 'none';
+  groupDetailsView.style.display = 'block';
+
+  const titleEl = document.getElementById('group-detail-title');
+  const descEl = document.getElementById('group-detail-desc');
+  if (titleEl) titleEl.textContent = name;
+  if (descEl) descEl.textContent = desc;
+
+  // Enforce role-based actions on the UI
+  const inviteMemberBtn = document.getElementById('invite-member-btn');
+  const addActivityBtn = document.getElementById('add-activity-btn');
+  if (inviteMemberBtn) {
+    inviteMemberBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
+  }
+  if (addActivityBtn) {
+    addActivityBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
+  }
+
+  // Clear comparison container in case it had old data
+  const comparisonContainer = document.getElementById('group-comparison-container');
+  if (comparisonContainer) comparisonContainer.innerHTML = '';
+
+  await loadGroupActivities(groupId);
+  await loadGroupMembers(groupId);
+}
+
+async function loadGroupActivities(groupId: string) {
+  const activitiesList = document.getElementById('group-activities-list');
+  if (!activitiesList) return;
+
+  try {
+    const response = await apiFetch(`/tracker/groups/${groupId}/activities`);
+    if (!response.ok) {
+      activitiesList.innerHTML = `<p class="error-text">Error al cargar actividades</p>`;
+      return;
     }
-    
-    // TODO: Fetch members from '/api/tracker/groups/:groupId/members'
-    const membersList = document.getElementById('group-members-list');
-    if (membersList) {
-      membersList.innerHTML = `
-        <div class="member-item">
-          <div class="member-info">
-            <span class="name">Alice Smith</span>
-            <span class="username">@alice</span>
-          </div>
-          <span class="badge admin">Admin</span>
-        </div>
-        <div class="member-item">
-          <div class="member-info">
-            <span class="name">Bob Johnson</span>
-            <span class="username">@bob</span>
-          </div>
-          <span class="badge member">Miembro</span>
-        </div>
-      `;
+    const resAnswer = await response.json();
+    const activities = resAnswer.data || [];
+
+    if (activities.length === 0) {
+      activitiesList.innerHTML = `<p class="empty-text">No hay actividades registradas en este grupo.</p>`;
+      return;
     }
+
+    activitiesList.innerHTML = activities.map((act: any) => `
+      <div class="activity-item">
+        <div class="activity-info">
+          <h4>${act.title}</h4>
+          <p>${act.body || 'Sin descripción'}</p>
+        </div>
+        <div class="activity-actions">
+          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Registrar</button>
+          <button class="nav-toggle-btn" onclick="window.loadActivityComparisons('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Progreso</button>
+        </div>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Activities load failed:', error);
+    activitiesList.innerHTML = `<p class="error-text">Error de conexión</p>`;
   }
 }
 
-const backToGroupsBtn = document.getElementById('back-to-groups-btn');
-if (backToGroupsBtn) {
-  backToGroupsBtn.addEventListener('click', () => {
-    loadTrackerGroups();
-  });
+async function loadGroupMembers(groupId: string) {
+  const membersList = document.getElementById('group-members-list');
+  if (!membersList) return;
+
+  try {
+    const response = await apiFetch(`/tracker/groups/${groupId}/members`);
+    if (!response.ok) {
+      membersList.innerHTML = `<p class="error-text">Error al cargar miembros</p>`;
+      return;
+    }
+    const resAnswer = await response.json();
+    const members = resAnswer.data || [];
+
+    membersList.innerHTML = members.map((member: any) => `
+      <div class="member-item">
+        <div class="member-info">
+          <span class="name">${member.displayname || member.user_id}</span>
+          <span class="username">@${member.user_id}</span>
+        </div>
+        <span class="badge ${member.role === 'admin' ? 'admin' : 'member'}">${member.status === 'active' ? (member.role === 'admin' ? 'Admin' : 'Miembro') : 'Pendiente'}</span>
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Members load failed:', error);
+    membersList.innerHTML = `<p class="error-text">Error de conexión</p>`;
+  }
 }
 
 async function loadTrackerFriends() {
-  // TODO: Fetch friend lists and request relationships from '/api/tracker/friends'
   const friendsList = document.getElementById('friends-list');
   const pendingList = document.getElementById('pending-friends-list');
-  
-  if (friendsList) {
-    friendsList.innerHTML = `
-      <div class="friend-card">
-        <div class="friend-avatar">BJ</div>
-        <h4 class="friend-name">Bob Johnson</h4>
-        <span class="friend-username">@bob</span>
-      </div>
-    `;
-  }
-  
-  if (pendingList) {
-    pendingList.innerHTML = `
-      <div class="pending-item">
-        <div class="pending-info">
-          <span class="name">Charlie Brown</span>
-          <span class="username">@charlie</span>
-        </div>
-        <div class="actions">
-          <button class="edit-btn" onclick="window.respondFriendRequest('charlie', 'accepted')">Aceptar</button>
-          <button class="delete-btn" onclick="window.respondFriendRequest('charlie', 'rejected')">Rechazar</button>
-        </div>
-      </div>
-    `;
+  if (!friendsList || !pendingList) return;
+
+  try {
+    const response = await apiFetch('/tracker/friends');
+    if (!response.ok) {
+      friendsList.innerHTML = `<p class="error-text">Error al cargar amigos</p>`;
+      return;
+    }
+    const resAnswer = await response.json();
+    const { friends, pendingSent, pendingReceived } = resAnswer.data || { friends: [], pendingSent: [], pendingReceived: [] };
+
+    if (friends.length === 0) {
+      friendsList.innerHTML = `<p class="empty-text">Aún no tienes amigos agregados.</p>`;
+    } else {
+      friendsList.innerHTML = friends.map((friend: any) => {
+        const initials = (friend.displayname || friend.username).slice(0, 2).toUpperCase();
+        return `
+          <div class="friend-card">
+            <div class="friend-avatar">${initials}</div>
+            <h4 class="friend-name">${friend.displayname || friend.username}</h4>
+            <span class="friend-username">@${friend.username}</span>
+          </div>
+        `;
+      }).join('');
+    }
+
+    if (pendingSent.length === 0 && pendingReceived.length === 0) {
+      pendingList.innerHTML = `<p class="empty-text">No tienes solicitudes pendientes.</p>`;
+    } else {
+      let pendingHtml = '';
+
+      pendingReceived.forEach((req: any) => {
+        pendingHtml += `
+          <div class="pending-item">
+            <div class="pending-info">
+              <span class="name">${req.displayname || req.username}</span>
+              <span class="username">@${req.username} (Recibida)</span>
+            </div>
+            <div class="actions">
+              <button class="edit-btn" onclick="window.respondFriendRequest('${req.username}', 'accepted')">Aceptar</button>
+              <button class="delete-btn" onclick="window.respondFriendRequest('${req.username}', 'rejected')">Rechazar</button>
+            </div>
+          </div>
+        `;
+      });
+
+      pendingSent.forEach((req: any) => {
+        pendingHtml += `
+          <div class="pending-item">
+            <div class="pending-info">
+              <span class="name">${req.displayname || req.username}</span>
+              <span class="username">@${req.username} (Enviada)</span>
+            </div>
+          </div>
+        `;
+      });
+
+      pendingList.innerHTML = pendingHtml;
+    }
+  } catch (error) {
+    console.error('Friends load failed:', error);
+    friendsList.innerHTML = `<p class="error-text">Error de conexión</p>`;
   }
 }
 
@@ -2303,11 +2424,29 @@ if (createGroupBtn) {
           <textarea id="new-group-desc" name="description"></textarea>
         </div>
       `,
-      (e) => {
-        // TODO: Send POST /api/tracker/groups with the new group details
+      async (e) => {
         const formData = new FormData(e.target as HTMLFormElement);
-        console.log('Boilerplate Group Create Submit:', formData.get('displayname'));
-        showSuccessMessage('Grupo creado con éxito (Stub)');
+        const displayname = formData.get('displayname');
+        const description = formData.get('description') || null;
+
+        try {
+          const response = await apiFetch('/tracker/groups', {
+            method: 'POST',
+            body: JSON.stringify({ displayname, description })
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            showErrorMessage(err.error || 'Error al crear grupo');
+            return;
+          }
+
+          showSuccessMessage('Grupo creado con éxito');
+          loadTrackerGroups();
+        } catch (error) {
+          console.error('Group creation failed:', error);
+          showErrorMessage('Error de conexión al crear grupo');
+        }
       }
     );
   });
@@ -2324,11 +2463,28 @@ if (addFriendTriggerBtn) {
           <input id="friend-username-input" name="username" required>
         </div>
       `,
-      (e) => {
-        // TODO: Send POST /api/tracker/friends/request
+      async (e) => {
         const formData = new FormData(e.target as HTMLFormElement);
-        console.log('Boilerplate Friend Request Submit:', formData.get('username'));
-        showSuccessMessage('Solicitud enviada con éxito (Stub)');
+        const username = formData.get('username');
+
+        try {
+          const response = await apiFetch('/tracker/friends/request', {
+            method: 'POST',
+            body: JSON.stringify({ username })
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            showErrorMessage(err.error || 'Error al enviar solicitud de amistad');
+            return;
+          }
+
+          showSuccessMessage('Solicitud de amistad enviada');
+          loadTrackerFriends();
+        } catch (error) {
+          console.error('Friend request failed:', error);
+          showErrorMessage('Error de conexión al enviar solicitud');
+        }
       }
     );
   });
@@ -2345,11 +2501,29 @@ if (inviteMemberBtn) {
           <input id="invite-username-input" name="username" required>
         </div>
       `,
-      (e) => {
-        // TODO: Send POST /api/tracker/groups/:groupId/invite
+      async (e) => {
+        if (!currentGroupId) return;
         const formData = new FormData(e.target as HTMLFormElement);
-        console.log('Boilerplate Group Invite Submit:', formData.get('username'));
-        showSuccessMessage('Invitación enviada con éxito (Stub)');
+        const username = formData.get('username');
+
+        try {
+          const response = await apiFetch(`/tracker/groups/${currentGroupId}/invite`, {
+            method: 'POST',
+            body: JSON.stringify({ username })
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            showErrorMessage(err.error || 'Error al invitar miembro');
+            return;
+          }
+
+          showSuccessMessage('Invitación enviada con éxito');
+          loadGroupMembers(currentGroupId);
+        } catch (error) {
+          console.error('Member invite failed:', error);
+          showErrorMessage('Error de conexión al invitar miembro');
+        }
       }
     );
   });
@@ -2370,11 +2544,30 @@ if (addActivityBtn) {
           <textarea id="act-body" name="body"></textarea>
         </div>
       `,
-      (e) => {
-        // TODO: Send POST /api/tracker/groups/:groupId/activities
+      async (e) => {
+        if (!currentGroupId) return;
         const formData = new FormData(e.target as HTMLFormElement);
-        console.log('Boilerplate Activity Create Submit:', formData.get('title'));
-        showSuccessMessage('Actividad creada con éxito (Stub)');
+        const title = formData.get('title');
+        const body = formData.get('body') || null;
+
+        try {
+          const response = await apiFetch(`/tracker/groups/${currentGroupId}/activities`, {
+            method: 'POST',
+            body: JSON.stringify({ title, body, status: 'active' })
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            showErrorMessage(err.error || 'Error al crear actividad');
+            return;
+          }
+
+          showSuccessMessage('Actividad creada con éxito');
+          loadGroupActivities(currentGroupId);
+        } catch (error) {
+          console.error('Activity creation failed:', error);
+          showErrorMessage('Error de conexión al crear actividad');
+        }
       }
     );
   });
@@ -2398,47 +2591,95 @@ if (addActivityBtn) {
         <textarea id="log-comment" name="commentar"></textarea>
       </div>
     `,
-    (e) => {
-      // TODO: Send POST /api/tracker/activities/:activityId/records
+    async (e) => {
       const formData = new FormData(e.target as HTMLFormElement);
-      console.log('Boilerplate Log Submit:', activityId, formData.get('value'));
-      showSuccessMessage('Registro guardado con éxito (Stub)');
+      const value = Number(formData.get('value'));
+      const fecha = new Date(formData.get('fecha') as string).toISOString();
+      const commentar = formData.get('commentar') || null;
+
+      try {
+        const response = await apiFetch(`/tracker/activities/${activityId}/records`, {
+          method: 'POST',
+          body: JSON.stringify({ value, fecha, commentar })
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          showErrorMessage(err.error || 'Error al guardar registro');
+          return;
+        }
+
+        showSuccessMessage('Registro guardado con éxito');
+        loadTrackerDashboard();
+      } catch (error) {
+        console.error('Record logging failed:', error);
+        showErrorMessage('Error de conexión al guardar registro');
+      }
     }
   );
 };
 
-(window as any).loadActivityComparisons = (activityId: string, activityTitle: string) => {
-  // TODO: Fetch comparisons from '/api/tracker/activities/:activityId/comparisons'
+(window as any).loadActivityComparisons = async (activityId: string, activityTitle: string) => {
   const container = document.getElementById('group-comparison-container');
-  if (container) {
+  if (!container) return;
+
+  try {
+    const response = await apiFetch(`/tracker/activities/${activityId}/comparisons`);
+    if (!response.ok) {
+      container.innerHTML = `<p class="error-text">Error al cargar comparaciones</p>`;
+      return;
+    }
+    const resAnswer = await response.json();
+    const data = resAnswer.data || [];
+
+    if (data.length === 0) {
+      container.innerHTML = `<h4>Progreso de Miembros: ${activityTitle}</h4><p class="empty-text">No hay registros para comparar.</p>`;
+      return;
+    }
+
+    const maxVal = Math.max(...data.map((c: any) => c.total_value), 1);
     container.innerHTML = `
       <h4>Progreso de Miembros: ${activityTitle}</h4>
-      <div class="comparison-row">
-        <div class="comparison-label">
-          <span>Alice Smith (Tú)</span>
-          <span>25 (100%)</span>
-        </div>
-        <div class="comparison-bar-bg">
-          <div class="comparison-bar-fill" style="width: 100%;"></div>
-        </div>
-      </div>
-      <div class="comparison-row">
-        <div class="comparison-label">
-          <span>Bob Johnson</span>
-          <span>28 (112%)</span>
-        </div>
-        <div class="comparison-bar-bg">
-          <div class="comparison-bar-fill" style="width: 100%;"></div>
-        </div>
-      </div>
+      ${data.map((item: any) => {
+        const percentage = Math.round((item.total_value / maxVal) * 100);
+        return `
+          <div class="comparison-row">
+            <div class="comparison-label">
+              <span>${item.displayname || item.username}</span>
+              <span>${item.total_value} (${percentage}%)</span>
+            </div>
+            <div class="comparison-bar-bg">
+              <div class="comparison-bar-fill" style="width: ${percentage}%;"></div>
+            </div>
+          </div>
+        `;
+      }).join('')}
     `;
+  } catch (error) {
+    console.error('Comparisons load failed:', error);
+    container.innerHTML = `<p class="error-text">Error de conexión</p>`;
   }
 };
 
-(window as any).respondFriendRequest = (username: string, action: string) => {
-  // TODO: Send POST /api/tracker/friends/respond
-  console.log('Boilerplate respond Friend Request:', username, action);
-  showSuccessMessage(`Solicitud ${action === 'accepted' ? 'aceptada' : 'rechazada'} (Stub)`);
+(window as any).respondFriendRequest = async (username: string, action: string) => {
+  try {
+    const response = await apiFetch('/tracker/friends/respond', {
+      method: 'POST',
+      body: JSON.stringify({ username, action })
+    });
+
+    if (!response.ok) {
+      const err = await response.json();
+      showErrorMessage(err.error || 'Error al responder solicitud');
+      return;
+    }
+
+    showSuccessMessage(`Solicitud ${action === 'accepted' ? 'aceptada' : 'rechazada'}`);
+    loadTrackerFriends();
+  } catch (error) {
+    console.error('Respond friend request failed:', error);
+    showErrorMessage('Error de conexión al responder solicitud');
+  }
 };
 
 async function initialize(): Promise<void> {
