@@ -461,29 +461,111 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/activities/:activityId/records
   app.get('/api/tracker/activities/:activityId/records', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Implement log entries fetching
-    // 1. Permission Check: Verify current user belongs to the group of this activity.
-    // 2. Query log table joined with users (public) to return log id, user_id, displayname, value, fecha, commentar.
-    return res.json({
-      success: true,
-      data: [
-        { id: 'log-uuid-stub', user_id: 'alice', displayname: 'Alice Smith', value: 25, fecha: new Date(), commentar: 'Finished! (Stub)' }
-      ]
-    });
+    // Summary: Fetches log records for a given activity, requiring that the requester belongs to the activity's group.
+    const { activityId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      // 1. Find the group that the activity belongs to
+      const trackCheck = await pool.query(
+        'SELECT "group" FROM track WHERE id = $1',
+        [activityId]
+      );
+
+      if (trackCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Activity not found' });
+      }
+
+      const groupId = trackCheck.rows[0].group;
+
+      // 2. Permission Check: Verify current user is an active member of this group
+      const memberCheck = await pool.query(
+        `SELECT 1 FROM user_group 
+         WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ error: "Must be an active member of the activity's group to view records" });
+      }
+
+      // 3. Query log table joined with users (public) to return log id, user_id, displayname, value, fecha, commentar
+      const result = await pool.query(
+        `SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar
+         FROM log l
+         JOIN users u ON l.user_id = u.username
+         WHERE l.track = $1
+         ORDER BY l.fecha DESC, l.id DESC`,
+        [activityId]
+      );
+
+      return res.json({
+        success: true,
+        data: result.rows
+      });
+    } catch (error) {
+      console.error('Error fetching activity records:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // POST /api/tracker/activities/:activityId/records
   app.post('/api/tracker/activities/:activityId/records', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Implement activity logging
-    // 1. Permission Check: Verify current user belongs to the group of this activity.
-    // 2. Validate request body against log schema via SSOT.
-    // 3. Insert row into log table with current user's username.
-    return res.status(201).json({
-      success: true,
-      data: { id: 'new-log-uuid-stub', user_id: 'alice', track: req.params.activityId, value: req.body.value, fecha: req.body.fecha, commentar: req.body.commentar }
-    });
+    // Summary: Logs a record entry for an activity, requiring that the requester belongs to the activity's group.
+    const { activityId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      // 1. Find the group that the activity belongs to
+      const trackCheck = await pool.query(
+        'SELECT "group" FROM track WHERE id = $1',
+        [activityId]
+      );
+
+      if (trackCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Activity not found' });
+      }
+
+      const groupId = trackCheck.rows[0].group;
+
+      // 2. Permission Check: Verify current user is an active member of this group
+      const memberCheck = await pool.query(
+        `SELECT 1 FROM user_group 
+         WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ error: "Must be an active member of the activity's group to log entries" });
+      }
+
+      // 3. Validate request body against log schema via SSOT
+      req.body.user_id = currentUser.username;
+      req.body.track = Number(activityId);
+
+      const validated = validateFullObject('log', req.body);
+      if (sendErrorsIfInvalid(res, validated)) {
+        return;
+      }
+
+      const { user_id, track, value, fecha, commentar } = validated.data;
+
+      // 4. Insert row into log table
+      const result = await pool.query(
+        `INSERT INTO log (user_id, track, value, fecha, commentar)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [user_id, track, value, fecha, commentar]
+      );
+
+      return res.status(201).json({
+        success: true,
+        data: result.rows[0]
+      });
+    } catch (error) {
+      console.error('Error logging activity record:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // GET /api/tracker/activities/:activityId/comparisons
@@ -546,12 +628,28 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/logs
   app.get('/api/tracker/logs', requireAuth, requirePasswordReady, async (req, res) => {
-    // Summary: Retrieves all registered users from the public.users table sorted alphabetically..
-    return res.json({
-      success: true,
-      data: [
-        { id: 'log-uuid-stub', activity_title: 'Morning 5k (Stub)', group_name: 'Exactas Runners (Stub)', value: 25, fecha: new Date(), commentar: 'Finished! (Stub)' }
-      ]
-    });
+    // Summary: Retrieves the last 50 activity log entries for the logged-in user across all activities and groups.
+    const currentUser = (req as any).user;
+
+    try {
+      const result = await pool.query(
+        `SELECT l.id, t.title AS activity_title, g.displayname AS group_name, l.value, l.fecha, l.commentar
+         FROM log l
+         JOIN track t ON l.track = t.id
+         JOIN groups g ON t.group = g.id
+         WHERE l.user_id = $1
+         ORDER BY l.fecha DESC, l.id DESC
+         LIMIT 50`,
+        [currentUser.username]
+      );
+
+      return res.json({
+        success: true,
+        data: result.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching tracker logs:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 }

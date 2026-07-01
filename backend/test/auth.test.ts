@@ -14,6 +14,7 @@ class FakeDb {
     this.groups = [];
     this.user_groups = [];
     this.tracks = [];
+    this.logs = [];
     this.nextUserId = Math.max(...users.map((user) => user.id)) + 1;
   }
 
@@ -240,6 +241,61 @@ class FakeDb {
       const rows = this.tracks
         .filter((t) => t.group === groupId)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return { rows };
+    }
+    if (sql.startsWith('SELECT "group" FROM track WHERE id =')) {
+      const trackId = Number(params[0]);
+      const track = this.tracks.find((t) => Number(t.id) === trackId);
+      return { rows: track ? [track] : [] };
+    }
+    if (sql.startsWith('SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar FROM log l')) {
+      const trackId = Number(params[0]);
+      const rows = this.logs
+        .filter((l) => Number(l.track) === trackId)
+        .map((l) => {
+          const u = this.business_users.find((u) => u.username === l.user_id);
+          return {
+            id: l.id,
+            user_id: l.user_id,
+            displayname: u ? (u.displayname || u.displayName || u.username) : l.user_id,
+            value: l.value,
+            fecha: l.fecha,
+            commentar: l.commentar
+          };
+        })
+        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+      return { rows };
+    }
+    if (sql.startsWith('INSERT INTO log')) {
+      const newLog = {
+        id: 'log-' + Math.random().toString(36).substring(2, 11),
+        user_id: params[0],
+        track: Number(params[1]),
+        value: Number(params[2]),
+        fecha: params[3],
+        commentar: params[4] || null
+      };
+      this.logs.push(newLog);
+      return { rows: [newLog] };
+    }
+    if (sql.startsWith('SELECT l.id, t.title AS activity_title, g.displayname AS group_name, l.value, l.fecha, l.commentar FROM log l')) {
+      const userId = params[0];
+      const rows = this.logs
+        .filter((l) => l.user_id === userId)
+        .map((l) => {
+          const track = this.tracks.find((t) => Number(t.id) === Number(l.track));
+          const group = this.groups.find((g) => g.id === track?.group);
+          return {
+            id: l.id,
+            activity_title: track ? track.title : 'Unknown Activity',
+            group_name: group ? group.displayname : 'Unknown Group',
+            value: l.value,
+            fecha: l.fecha,
+            commentar: l.commentar
+          };
+        })
+        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
+        .slice(0, 50);
       return { rows };
     }
 
@@ -645,5 +701,168 @@ test('GET & POST group activities (tracks) endpoints work as expected', async ()
     assert.equal(getRes.body.success, true);
     assert.equal(getRes.body.data.length, 1);
     assert.equal(getRes.body.data[0].title, 'Morning Jog');
+  });
+});
+
+test('GET & POST activity records (logs) endpoints work as expected', async () => {
+  const db = await makeDb();
+  db.business_users = [
+    { username: 'editor', displayName: 'Editor User', password: '...', created_at: new Date().toISOString() },
+    { username: 'reader', displayName: 'Reader User', password: '...', created_at: new Date().toISOString() }
+  ];
+
+  await withServer(db, async (baseUrl) => {
+    // 1. Log in
+    const cookieEditor = await login(baseUrl, 'editor', 'editorpass');
+    const cookieReader = await login(baseUrl, 'reader', 'readerpass');
+
+    // 2. Editor creates a group
+    const createRes = await request(baseUrl, '/api/tracker/groups', {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        displayname: 'Workout Club',
+        description: null
+      }
+    });
+    const groupId = createRes.body.data.id;
+
+    // 3. Editor creates an activity successfully
+    const successfulPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        title: 'Morning Jog',
+        body: 'Run 5km',
+        status: 'active'
+      }
+    });
+    const activityId = successfulPost.body.data.id;
+
+    // 4. Reader (not group member) attempts to log a record for activity -> should return 403
+    const forbiddenPost = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+      method: 'POST',
+      cookie: cookieReader,
+      body: {
+        value: 10,
+        fecha: new Date().toISOString(),
+        commentar: 'Nice run!'
+      }
+    });
+    assert.equal(forbiddenPost.status, 403);
+
+    // 5. Reader (not group member) attempts to get records -> should return 403
+    const forbiddenGet = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+      cookie: cookieReader
+    });
+    assert.equal(forbiddenGet.status, 403);
+
+    // 6. Editor logs a record with invalid payload -> should return 400 (validation error)
+    const invalidPost = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        value: -5, // value must be >= 0
+        fecha: 'not-a-date'
+      }
+    });
+    assert.equal(invalidPost.status, 400);
+
+    // 7. Editor logs a valid record successfully -> should return 201
+    const recordPost = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        value: 15,
+        fecha: new Date().toISOString(),
+        commentar: 'Completed 15km!'
+      }
+    });
+    assert.equal(recordPost.status, 201);
+    assert.equal(recordPost.body.success, true);
+    assert.equal(recordPost.body.data.value, 15);
+    assert.equal(recordPost.body.data.commentar, 'Completed 15km!');
+
+    // 8. Editor views the logs for the activity -> should return 200 and one record
+    const recordsGet = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+      cookie: cookieEditor
+    });
+    assert.equal(recordsGet.status, 200);
+    assert.equal(recordsGet.body.success, true);
+    assert.equal(recordsGet.body.data.length, 1);
+    assert.equal(recordsGet.body.data[0].value, 15);
+    assert.equal(recordsGet.body.data[0].displayname, 'Editor User');
+
+    // 9. Requesting logs for nonexistent activity -> should return 404
+    const nonexistentGet = await request(baseUrl, '/api/tracker/activities/999/records', {
+      cookie: cookieEditor
+    });
+    assert.equal(nonexistentGet.status, 404);
+  });
+});
+
+test('GET /api/tracker/logs retrieves the user last activity log entries across all groups and tracks', async () => {
+  const db = await makeDb();
+  db.business_users = [
+    { username: 'editor', displayName: 'Editor User', password: '...', created_at: new Date().toISOString() },
+    { username: 'reader', displayName: 'Reader User', password: '...', created_at: new Date().toISOString() }
+  ];
+
+  await withServer(db, async (baseUrl) => {
+    // 1. Without auth, should return 401
+    const unauthGet = await request(baseUrl, '/api/tracker/logs');
+    assert.equal(unauthGet.status, 401);
+
+    // 2. Log in
+    const cookie = await login(baseUrl, 'editor', 'editorpass');
+
+    // 3. GET /api/tracker/logs initially empty -> should return empty array
+    const initialGet = await request(baseUrl, '/api/tracker/logs', { cookie });
+    assert.equal(initialGet.status, 200);
+    assert.equal(initialGet.body.success, true);
+    assert.equal(initialGet.body.data.length, 0);
+
+    // 4. Create a group, activity, and log a record
+    const groupRes = await request(baseUrl, '/api/tracker/groups', {
+      method: 'POST',
+      cookie,
+      body: {
+        displayname: 'Workout Club',
+        description: null
+      }
+    });
+    const groupId = groupRes.body.data.id;
+
+    const activityRes = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
+      method: 'POST',
+      cookie,
+      body: {
+        title: 'Pushups',
+        body: 'Do 50 pushups',
+        status: 'active'
+      }
+    });
+    const activityId = activityRes.body.data.id;
+
+    const recordRes = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+      method: 'POST',
+      cookie,
+      body: {
+        value: 50,
+        fecha: new Date().toISOString(),
+        commentar: 'Smashed it!'
+      }
+    });
+    assert.equal(recordRes.status, 201);
+
+    // 5. GET /api/tracker/logs should return the logged record with joined activity and group details
+    const logsGet = await request(baseUrl, '/api/tracker/logs', { cookie });
+    assert.equal(logsGet.status, 200);
+    assert.equal(logsGet.body.success, true);
+    assert.equal(logsGet.body.data.length, 1);
+    assert.equal(logsGet.body.data[0].activity_title, 'Pushups');
+    assert.equal(logsGet.body.data[0].group_name, 'Workout Club');
+    assert.equal(logsGet.body.data[0].value, 50);
+    assert.equal(logsGet.body.data[0].commentar, 'Smashed it!');
   });
 });
