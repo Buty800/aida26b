@@ -15,6 +15,7 @@ class FakeDb {
     this.user_groups = [];
     this.tracks = [];
     this.logs = [];
+    this.friends_list = [];
     this.nextUserId = Math.max(...users.map((user) => user.id)) + 1;
   }
 
@@ -297,6 +298,54 @@ class FakeDb {
         .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime())
         .slice(0, 50);
       return { rows };
+    }
+    if (sql.startsWith('SELECT f.friend1, u1.displayname AS displayname1, f.friend2, u2.displayname AS displayname2, f.request FROM friends f')) {
+      const userId = params[0];
+      const rows = this.friends_list
+        .filter((f) => f.friend1 === userId || f.friend2 === userId)
+        .map((f) => {
+          const u1 = this.users.find((u) => u.username === f.friend1) || this.business_users.find((u) => u.username === f.friend1);
+          const u2 = this.users.find((u) => u.username === f.friend2) || this.business_users.find((u) => u.username === f.friend2);
+          return {
+            friend1: f.friend1,
+            displayname1: u1 ? (u1.displayname || u1.displayName || u1.username) : f.friend1,
+            friend2: f.friend2,
+            displayname2: u2 ? (u2.displayname || u2.displayName || u2.username) : f.friend2,
+            request: f.request
+          };
+        });
+      return { rows };
+    }
+    if (sql.startsWith('SELECT request FROM friends WHERE friend1 =')) {
+      const f1 = params[0];
+      const f2 = params[1];
+      const rel = this.friends_list.find((f) => f.friend1 === f1 && f.friend2 === f2);
+      return { rows: rel ? [rel] : [] };
+    }
+    if (sql.startsWith('INSERT INTO friends')) {
+      const rel = {
+        friend1: params[0],
+        friend2: params[1],
+        request: 'pending'
+      };
+      this.friends_list.push(rel);
+      return { rows: [rel] };
+    }
+    if (sql.startsWith("UPDATE friends SET request = 'accepted'")) {
+      const f1 = params[0];
+      const f2 = params[1];
+      const rel = this.friends_list.find((f) => f.friend1 === f1 && f.friend2 === f2);
+      if (rel) {
+        rel.request = 'accepted';
+      }
+      return { rowCount: rel ? 1 : 0 };
+    }
+    if (sql.startsWith('DELETE FROM friends')) {
+      const f1 = params[0];
+      const f2 = params[1];
+      const len = this.friends_list.length;
+      this.friends_list = this.friends_list.filter((f) => !(f.friend1 === f1 && f.friend2 === f2));
+      return { rowCount: len - this.friends_list.length };
     }
 
     throw new Error(`Unhandled query: ${sql}`);
@@ -864,5 +913,93 @@ test('GET /api/tracker/logs retrieves the user last activity log entries across 
     assert.equal(logsGet.body.data[0].group_name, 'Workout Club');
     assert.equal(logsGet.body.data[0].value, 50);
     assert.equal(logsGet.body.data[0].commentar, 'Smashed it!');
+  });
+});
+
+test('GET, POST /friends/request, and POST /friends/respond endpoints work as expected', async () => {
+  const db = await makeDb();
+  db.business_users = [
+    { username: 'editor', displayName: 'Editor User', password: '...', created_at: new Date().toISOString() },
+    { username: 'reader', displayName: 'Reader User', password: '...', created_at: new Date().toISOString() },
+    { username: 'admin', displayName: 'Admin User', password: '...', created_at: new Date().toISOString() }
+  ];
+
+  await withServer(db, async (baseUrl) => {
+    // 1. Log in
+    const cookieEditor = await login(baseUrl, 'editor', 'editorpass');
+    const cookieReader = await login(baseUrl, 'reader', 'readerpass');
+
+    // 2. Editor requests reader to be friends (editor < reader)
+    const requestRes = await request(baseUrl, '/api/tracker/friends/request', {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: { username: 'reader' }
+    });
+    assert.equal(requestRes.status, 200);
+    assert.equal(requestRes.body.success, true);
+
+    // 3. Editor requests reader again -> should return 409 (conflict)
+    const duplicateRes = await request(baseUrl, '/api/tracker/friends/request', {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: { username: 'reader' }
+    });
+    assert.equal(duplicateRes.status, 409);
+
+    // 4. Editor requests nonexistent user -> should return 404
+    const nonexistentRes = await request(baseUrl, '/api/tracker/friends/request', {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: { username: 'nonexistent' }
+    });
+    assert.equal(nonexistentRes.status, 404);
+
+    // 5. Editor requests themselves -> should return 400
+    const selfRes = await request(baseUrl, '/api/tracker/friends/request', {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: { username: 'editor' }
+    });
+    assert.equal(selfRes.status, 400);
+
+    // 6. GET friends list for Editor -> should have 1 pendingSent (reader) and 0 friends
+    const editorFriends = await request(baseUrl, '/api/tracker/friends', { cookie: cookieEditor });
+    assert.equal(editorFriends.status, 200);
+    assert.equal(editorFriends.body.data.friends.length, 0);
+    assert.equal(editorFriends.body.data.pendingSent.length, 1);
+    assert.equal(editorFriends.body.data.pendingSent[0].username, 'reader');
+    assert.equal(editorFriends.body.data.pendingReceived.length, 0);
+
+    // 7. GET friends list for Reader -> should have 1 pendingReceived (editor) and 0 friends
+    const readerFriends = await request(baseUrl, '/api/tracker/friends', { cookie: cookieReader });
+    assert.equal(readerFriends.status, 200);
+    assert.equal(readerFriends.body.data.friends.length, 0);
+    assert.equal(readerFriends.body.data.pendingSent.length, 0);
+    assert.equal(readerFriends.body.data.pendingReceived.length, 1);
+    assert.equal(readerFriends.body.data.pendingReceived[0].username, 'editor');
+
+    // 8. Reader responds with invalid action -> should return 400
+    const invalidRespond = await request(baseUrl, '/api/tracker/friends/respond', {
+      method: 'POST',
+      cookie: cookieReader,
+      body: { username: 'editor', action: 'maybe' }
+    });
+    assert.equal(invalidRespond.status, 400);
+
+    // 9. Reader accepts friend request successfully -> should return 200
+    const acceptRespond = await request(baseUrl, '/api/tracker/friends/respond', {
+      method: 'POST',
+      cookie: cookieReader,
+      body: { username: 'editor', action: 'accepted' }
+    });
+    assert.equal(acceptRespond.status, 200);
+    assert.equal(acceptRespond.body.success, true);
+
+    // 10. GET friends list again for Reader -> should now have 1 friend (editor) and 0 pending
+    const readerFriendsAfter = await request(baseUrl, '/api/tracker/friends', { cookie: cookieReader });
+    assert.equal(readerFriendsAfter.status, 200);
+    assert.equal(readerFriendsAfter.body.data.friends.length, 1);
+    assert.equal(readerFriendsAfter.body.data.friends[0].username, 'editor');
+    assert.equal(readerFriendsAfter.body.data.pendingReceived.length, 0);
   });
 });

@@ -585,45 +585,171 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/friends
   app.get('/api/tracker/friends', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Fetch lists of friends
-    // 1. Friends: relationships with status = 'accepted' involving current user.
-    // 2. PendingSent: relationships with status = 'pending' where current user is friend1 and friend1 < friend2 or similar.
-    // 3. PendingReceived: relationships with status = 'pending' where current user is friend2.
-    return res.json({
-      success: true,
-      data: {
-        friends: [{ username: 'bob', displayname: 'Bob Johnson' }],
-        pendingSent: [],
-        pendingReceived: []
+    // Summary: Fetches the lists of active friends, pending sent requests, and pending received requests.
+    const currentUser = (req as any).user;
+
+    try {
+      const result = await pool.query(
+        `SELECT 
+           f.friend1,
+           u1.displayname AS displayname1,
+           f.friend2,
+           u2.displayname AS displayname2,
+           f.request
+         FROM friends f
+         JOIN users u1 ON f.friend1 = u1.username
+         JOIN users u2 ON f.friend2 = u2.username
+         WHERE f.friend1 = $1 OR f.friend2 = $1`,
+        [currentUser.username]
+      );
+
+      const friends: any[] = [];
+      const pendingSent: any[] = [];
+      const pendingReceived: any[] = [];
+
+      for (const row of result.rows) {
+        if (row.request === 'accepted') {
+          if (row.friend1 === currentUser.username) {
+            friends.push({ username: row.friend2, displayname: row.displayname2 });
+          } else {
+            friends.push({ username: row.friend1, displayname: row.displayname1 });
+          }
+        } else if (row.request === 'pending') {
+          if (row.friend1 === currentUser.username) {
+            pendingSent.push({ username: row.friend2, displayname: row.displayname2 });
+          } else {
+            pendingReceived.push({ username: row.friend1, displayname: row.displayname1 });
+          }
+        }
       }
-    });
+
+      return res.json({
+        success: true,
+        data: {
+          friends,
+          pendingSent,
+          pendingReceived
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching tracker friends:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // POST /api/tracker/friends/request
   app.post('/api/tracker/friends/request', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Send friend request
-    // 1. Ensure target user exists in public.users.
-    // 2. Arrange names so friend1 < friend2 constraint is met.
-    // 3. Insert row in friends table with request = 'pending'.
-    return res.json({
-      success: true,
-      message: `Friend request boilerplate stub: Sent request to ${req.body.username}`
-    });
+    // Summary: Sends a friend request to another user, creating a pending relationship.
+    const { username } = req.body;
+    const currentUser = (req as any).user;
+
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    if (username === currentUser.username) {
+      return res.status(400).json({ error: 'Cannot send a friend request to yourself' });
+    }
+
+    try {
+      // 1. Ensure target user exists in public.users
+      const userCheck = await pool.query(
+        'SELECT 1 FROM users WHERE username = $1',
+        [username]
+      );
+
+      if (userCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Target user not found' });
+      }
+
+      // 2. Arrange names so friend1 < friend2 constraint is met
+      const friend1 = currentUser.username < username ? currentUser.username : username;
+      const friend2 = currentUser.username < username ? username : currentUser.username;
+
+      // Check if relationship already exists
+      const relCheck = await pool.query(
+        'SELECT request FROM friends WHERE friend1 = $1 AND friend2 = $2',
+        [friend1, friend2]
+      );
+
+      if (relCheck.rows.length > 0) {
+        return res.status(409).json({ error: 'A friend relationship or pending request already exists' });
+      }
+
+      // 3. Insert row in friends table with request = 'pending'
+      await pool.query(
+        `INSERT INTO friends (friend1, friend2, request)
+         VALUES ($1, $2, 'pending')`,
+        [friend1, friend2]
+      );
+
+      return res.json({
+        success: true,
+        message: `Friend request sent to ${username}`
+      });
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // POST /api/tracker/friends/respond
   app.post('/api/tracker/friends/respond', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Respond to friend request
-    // 1. Arrange names so friend1 < friend2 constraint is met.
-    // 2. If action = 'accepted': Update request = 'accepted'.
-    // 3. If action = 'rejected': Delete relationship row.
-    return res.json({
-      success: true,
-      message: `Friend response boilerplate stub: Responded to ${req.body.username} with action ${req.body.action}`
-    });
+    // Summary: Responds to a friend request (accepts or rejects it).
+    const { username, action } = req.body;
+    const currentUser = (req as any).user;
+
+    if (!username || !action) {
+      return res.status(400).json({ error: 'Username and action are required' });
+    }
+
+    if (action !== 'accepted' && action !== 'rejected') {
+      return res.status(400).json({ error: "Action must be 'accepted' or 'rejected'" });
+    }
+
+    try {
+      // 1. Arrange names so friend1 < friend2 constraint is met
+      const friend1 = currentUser.username < username ? currentUser.username : username;
+      const friend2 = currentUser.username < username ? username : currentUser.username;
+
+      // Verify relationship exists and is pending
+      const relCheck = await pool.query(
+        'SELECT request FROM friends WHERE friend1 = $1 AND friend2 = $2',
+        [friend1, friend2]
+      );
+
+      if (relCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Friend request not found' });
+      }
+
+      if (relCheck.rows[0].request !== 'pending') {
+        return res.status(400).json({ error: 'Friend request is not pending' });
+      }
+
+      if (action === 'accepted') {
+        // 2. If action = 'accepted': Update request = 'accepted'
+        await pool.query(
+          `UPDATE friends SET request = 'accepted'
+           WHERE friend1 = $1 AND friend2 = $2`,
+          [friend1, friend2]
+        );
+      } else {
+        // 3. If action = 'rejected': Delete relationship row
+        await pool.query(
+          `DELETE FROM friends
+           WHERE friend1 = $1 AND friend2 = $2`,
+          [friend1, friend2]
+        );
+      }
+
+      return res.json({
+        success: true,
+        message: `Successfully ${action} friend request from ${username}`
+      });
+    } catch (error) {
+      console.error('Error responding to friend request:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // GET /api/tracker/logs
