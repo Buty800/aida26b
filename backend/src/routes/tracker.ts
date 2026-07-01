@@ -230,42 +230,149 @@ export function registerTrackerRoutes(
 
   // POST /api/tracker/groups/:groupId/invite
   app.post('/api/tracker/groups/:groupId/invite', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Implement invitation logic
-    // 1. Permission Check: Verify that the current user is a group administrator (role = 'admin' and status = 'active' in user_group).
-    // 2. Verify target user exists in public.users.
-    // 3. Insert user_group record with status = 'invited' and role = 'member'.
-    return res.json({
-      success: true,
-      message: `Invitation boilerplate stub: Invited user ${req.body.username} to group ${req.params.groupId}`
-    });
+    // Summary: Invites a user to a group, requiring that the requester is a group administrator.
+    const { groupId } = req.params;
+    const { username } = req.body;
+    const currentUser = (req as any).user;
+
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    try {
+      // 1. Permission Check: Verify that the current user is a group administrator
+      const permCheck = await pool.query(
+        `SELECT 1 FROM user_group 
+         WHERE user_id = $1 AND group_id = $2 AND role = 'admin' AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+
+      if (permCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'Only group administrators can send invitations' });
+      }
+
+      // 2. Verify target user exists in public.users
+      const userCheck = await pool.query(
+        'SELECT 1 FROM users WHERE username = $1',
+        [username]
+      );
+
+      if (userCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Target user not found' });
+      }
+
+      // 3. Verify target user is not already a member or invited to the group
+      const membershipCheck = await pool.query(
+        'SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2',
+        [username, groupId]
+      );
+
+      if (membershipCheck.rows.length > 0) {
+        return res.status(409).json({ error: 'User is already a member or has a pending invitation' });
+      }
+
+      // 4. Insert user_group record with status = 'invited' and role = 'member'
+      await pool.query(
+        `INSERT INTO user_group (user_id, group_id, role, status)
+         VALUES ($1, $2, 'member', 'invited')`,
+        [username, groupId]
+      );
+
+      return res.json({
+        success: true,
+        message: `Successfully invited user ${username} to group ${groupId}`
+      });
+    } catch (error) {
+      console.error('Error inviting user to group:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // POST /api/tracker/groups/:groupId/invite/respond
   app.post('/api/tracker/groups/:groupId/invite/respond', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Respond to group invite
-    // 1. Permission Check: Verify that current user is invited (status = 'invited' in user_group).
-    // 2. If body action is 'accepted': Update status = 'active'.
-    // 3. If body action is 'rejected': Delete user_group record.
-    return res.json({
-      success: true,
-      message: `Invite response boilerplate stub: Responded to group ${req.params.groupId} with action ${req.body.action}`
-    });
+    // Summary: Accepts or rejects a group invitation for the logged-in user.
+    const { groupId } = req.params;
+    const { action } = req.body;
+    const currentUser = (req as any).user;
+
+    if (action !== 'accepted' && action !== 'rejected') {
+      return res.status(400).json({ error: "Action must be 'accepted' or 'rejected'" });
+    }
+
+    try {
+      // 1. Permission Check: Verify that current user is invited (status = 'invited' in user_group)
+      const inviteCheck = await pool.query(
+        `SELECT 1 FROM user_group 
+         WHERE user_id = $1 AND group_id = $2 AND status = 'invited'`,
+        [currentUser.username, groupId]
+      );
+
+      if (inviteCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Invitation not found' });
+      }
+
+      if (action === 'accepted') {
+        // 2. If body action is 'accepted': Update status = 'active'
+        await pool.query(
+          `UPDATE user_group SET status = 'active'
+           WHERE user_id = $1 AND group_id = $2`,
+          [currentUser.username, groupId]
+        );
+      } else {
+        // 3. If body action is 'rejected': Delete user_group record
+        await pool.query(
+          `DELETE FROM user_group
+           WHERE user_id = $1 AND group_id = $2`,
+          [currentUser.username, groupId]
+        );
+      }
+
+      return res.json({
+        success: true,
+        message: `Successfully ${action} group invitation`
+      });
+    } catch (error) {
+      console.error('Error responding to invitation:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // GET /api/tracker/groups/:groupId/members
   app.get('/api/tracker/groups/:groupId/members', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Implement members fetching
-    // 1. Permission Check: Verify current user is an active member of this group.
-    // 2. Query user_group joined with users to return user_id, displayname, role, status.
-    return res.json({
-      success: true,
-      data: [
-        { user_id: 'alice', displayname: 'Alice Smith', role: 'admin', status: 'active' }
-      ]
-    });
+    // Summary: Retrieves the list of members in a group, requiring that the requester is an active member of the group.
+    const { groupId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      // 1. Permission Check: Verify current user is an active member of this group
+      const membershipCheck = await pool.query(
+        `SELECT 1 FROM user_group 
+         WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+
+      if (membershipCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'Must be an active member of the group to view members' });
+      }
+
+      // 2. Query user_group joined with users to return user_id, displayname, role, status
+      const result = await pool.query(
+        `SELECT ug.user_id, u.displayname, ug.role, ug.status
+         FROM user_group ug
+         JOIN users u ON ug.user_id = u.username
+         WHERE ug.group_id = $1
+         ORDER BY ug.user_id ASC`,
+        [groupId]
+      );
+
+      return res.json({
+        success: true,
+        data: result.rows
+      });
+    } catch (error) {
+      console.error('Error fetching group members:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // GET /api/tracker/groups/:groupId/activities

@@ -91,6 +91,13 @@ class FakeDb {
           .sort((a, b) => a.username.localeCompare(b.username)),
       };
     }
+    if (sql.startsWith('SELECT 1 FROM users WHERE username =')) {
+      const username = params[0];
+      const existsInUsers = this.users.some((u) => u.username === username);
+      const existsInBusiness = this.business_users.some((u) => u.username === username || u.displayName === username);
+      const exists = existsInUsers || existsInBusiness;
+      return { rowCount: exists ? 1 : 0, rows: exists ? [{ 1: 1 }] : [] };
+    }
 
     // Handle queries that wrap the users query in a CTE/derived table or use COUNT
     if (/FROM\s*\(\s*SELECT\s+\*\s+FROM\s+users/i.test(sql) || /FROM\s+users/i.test(sql)) {
@@ -146,6 +153,73 @@ class FakeDb {
           };
         })
         .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
+      return { rows };
+    }
+    if (sql.startsWith('SELECT 1 FROM user_group') && sql.includes("role = 'admin' AND status = 'active'")) {
+      const userId = params[0];
+      const groupId = params[1];
+      const exists = this.user_groups.some(
+        (ug) => ug.user_id === userId && ug.group_id === groupId && ug.role === 'admin' && ug.status === 'active'
+      );
+      return { rowCount: exists ? 1 : 0, rows: exists ? [{ 1: 1 }] : [] };
+    }
+
+    if (sql.startsWith('SELECT 1 FROM user_group') && sql.includes("status = 'invited'")) {
+      const userId = params[0];
+      const groupId = params[1];
+      const exists = this.user_groups.some(
+        (ug) => ug.user_id === userId && ug.group_id === groupId && ug.status === 'invited'
+      );
+      return { rowCount: exists ? 1 : 0, rows: exists ? [{ 1: 1 }] : [] };
+    }
+    if (sql.startsWith('SELECT 1 FROM user_group') && sql.includes("status = 'active'")) {
+      const userId = params[0];
+      const groupId = params[1];
+      const exists = this.user_groups.some(
+        (ug) => ug.user_id === userId && ug.group_id === groupId && ug.status === 'active'
+      );
+      return { rowCount: exists ? 1 : 0, rows: exists ? [{ 1: 1 }] : [] };
+    }
+    if (sql.startsWith('SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2')) {
+      const userId = params[0];
+      const groupId = params[1];
+      const exists = this.user_groups.some(
+        (ug) => ug.user_id === userId && ug.group_id === groupId
+      );
+      return { rowCount: exists ? 1 : 0, rows: exists ? [{ 1: 1 }] : [] };
+    }
+    if (sql.startsWith("UPDATE user_group SET status = 'active'")) {
+      const userId = params[0];
+      const groupId = params[1];
+      const ug = this.user_groups.find((ug) => ug.user_id === userId && ug.group_id === groupId);
+      if (ug) {
+        ug.status = 'active';
+      }
+      return { rowCount: ug ? 1 : 0, rows: ug ? [ug] : [] };
+    }
+    if (sql.startsWith('DELETE FROM user_group')) {
+      const userId = params[0];
+      const groupId = params[1];
+      const initialLength = this.user_groups.length;
+      this.user_groups = this.user_groups.filter(
+        (ug) => !(ug.user_id === userId && ug.group_id === groupId)
+      );
+      return { rowCount: initialLength - this.user_groups.length };
+    }
+    if (sql.startsWith('SELECT ug.user_id, u.displayname, ug.role, ug.status')) {
+      const groupId = params[0];
+      const rows = this.user_groups
+        .filter((ug) => ug.group_id === groupId)
+        .map((ug) => {
+          const u = this.users.find((u) => u.username === ug.user_id) || this.business_users.find((u) => u.username === ug.user_id);
+          return {
+            user_id: ug.user_id,
+            displayname: u ? (u.displayname || u.displayName || u.username) : ug.user_id,
+            role: ug.role,
+            status: ug.status,
+          };
+        })
+        .sort((a, b) => a.user_id.localeCompare(b.user_id));
       return { rows };
     }
 
@@ -377,5 +451,102 @@ test('GET and POST /api/tracker/groups handles group creation and lists active u
       }
     });
     assert.equal(invalidCreate.status, 400);
+  });
+});
+
+test('GET & POST group invitations and members endpoints work as expected', async () => {
+  const db = await makeDb();
+  // Seed the business users corresponding to our auth users
+  db.business_users = [
+    { username: 'editor', displayName: 'Editor User', password: '...', created_at: new Date().toISOString() },
+    { username: 'reader', displayName: 'Reader User', password: '...', created_at: new Date().toISOString() }
+  ];
+
+  await withServer(db, async (baseUrl) => {
+    // 1. Log in
+    const cookieEditor = await login(baseUrl, 'editor', 'editorpass');
+    const cookieReader = await login(baseUrl, 'reader', 'readerpass');
+
+    // 2. Editor creates a group
+    const createRes = await request(baseUrl, '/api/tracker/groups', {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        displayname: 'Runner Club',
+        description: null
+      }
+    });
+    const groupId = createRes.body.data.id;
+
+    // 3. Reader (not member or admin) tries to view members -> should return 403
+    const forbiddenMembers = await request(baseUrl, `/api/tracker/groups/${groupId}/members`, {
+      cookie: cookieReader
+    });
+    assert.equal(forbiddenMembers.status, 403);
+
+    // 4. Reader tries to invite editor -> should return 403 (reader is not admin)
+    const unauthorizedInvite = await request(baseUrl, `/api/tracker/groups/${groupId}/invite`, {
+      method: 'POST',
+      cookie: cookieReader,
+      body: { username: 'editor' }
+    });
+    assert.equal(unauthorizedInvite.status, 403);
+
+    // 5. Editor invites nonexistent user -> should return 404
+    const nonexistentInvite = await request(baseUrl, `/api/tracker/groups/${groupId}/invite`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: { username: 'nonexistent' }
+    });
+    assert.equal(nonexistentInvite.status, 404);
+
+    // 6. Editor invites reader successfully -> should return 200
+    const successfulInvite = await request(baseUrl, `/api/tracker/groups/${groupId}/invite`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: { username: 'reader' }
+    });
+    assert.equal(successfulInvite.status, 200);
+    assert.equal(successfulInvite.body.success, true);
+
+    // 7. Editor invites reader again -> should return 409 (conflict)
+    const duplicateInvite = await request(baseUrl, `/api/tracker/groups/${groupId}/invite`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: { username: 'reader' }
+    });
+    assert.equal(duplicateInvite.status, 409);
+
+    // 8. Reader responds to invitation with invalid action -> should return 400
+    const invalidRespond = await request(baseUrl, `/api/tracker/groups/${groupId}/invite/respond`, {
+      method: 'POST',
+      cookie: cookieReader,
+      body: { action: 'maybe' }
+    });
+    assert.equal(invalidRespond.status, 400);
+
+    // 9. Reader accepts the invitation successfully -> should return 200
+    const acceptRespond = await request(baseUrl, `/api/tracker/groups/${groupId}/invite/respond`, {
+      method: 'POST',
+      cookie: cookieReader,
+      body: { action: 'accepted' }
+    });
+    assert.equal(acceptRespond.status, 200);
+    assert.equal(acceptRespond.body.success, true);
+
+    // 10. Reader now is an active member, gets the group member list -> should return 200 and two members
+    const membersRes = await request(baseUrl, `/api/tracker/groups/${groupId}/members`, {
+      cookie: cookieReader
+    });
+    assert.equal(membersRes.status, 200);
+    assert.equal(membersRes.body.success, true);
+    assert.equal(membersRes.body.data.length, 2);
+    // Members should be ordered by username
+    assert.equal(membersRes.body.data[0].user_id, 'editor');
+    assert.equal(membersRes.body.data[0].role, 'admin');
+    assert.equal(membersRes.body.data[0].status, 'active');
+    assert.equal(membersRes.body.data[1].user_id, 'reader');
+    assert.equal(membersRes.body.data[1].role, 'member');
+    assert.equal(membersRes.body.data[1].status, 'active');
   });
 });
