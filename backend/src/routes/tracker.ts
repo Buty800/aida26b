@@ -377,29 +377,86 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/groups/:groupId/activities
   app.get('/api/tracker/groups/:groupId/activities', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Implement activities listing
-    // 1. Permission Check: Verify current user is an active group member.
-    // 2. Select track rows where group = groupId.
-    return res.json({
-      success: true,
-      data: [
-        { id: 1, title: 'Morning 5k (Stub)', body: 'Run 5km', group: req.params.groupId, status: 'active', created_at: new Date() }
-      ]
-    });
+    // Summary: Retrieves the list of active activities (tracks) in a group, requiring active group membership.
+    const { groupId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      // 1. Permission Check: Verify current user is an active group member
+      const memberCheck = await pool.query(
+        `SELECT 1 FROM user_group 
+         WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'Must be an active member of the group to view activities' });
+      }
+
+      // 2. Select track rows where group = groupId
+      const result = await pool.query(
+        `SELECT id, title, body, "group", status, created_at 
+         FROM track 
+         WHERE "group" = $1 
+         ORDER BY created_at DESC`,
+        [groupId]
+      );
+
+      return res.json({
+        success: true,
+        data: result.rows
+      });
+    } catch (error) {
+      console.error('Error fetching group activities:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // POST /api/tracker/groups/:groupId/activities
   app.post('/api/tracker/groups/:groupId/activities', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Implement activity creation
-    // 1. Permission Check: Verify that current user is a group administrator (role = 'admin' and status = 'active').
-    // 2. Validate request body against track schema via SSOT structure.
-    // 3. Insert row into track table.
-    return res.status(201).json({
-      success: true,
-      data: { id: 99, title: req.body.title || 'New Activity Stub', body: req.body.body, group: req.params.groupId, status: 'active', created_at: new Date() }
-    });
+    // Summary: Creates a new activity in a group, requiring that the requester is a group administrator.
+    const { groupId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      // 1. Permission Check: Verify that current user is a group administrator (role = 'admin' and status = 'active')
+      const adminCheck = await pool.query(
+        `SELECT 1 FROM user_group 
+         WHERE user_id = $1 AND group_id = $2 AND role = 'admin' AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+
+      if (adminCheck.rows.length === 0) {
+        return res.status(403).json({ error: 'Only group administrators can create activities' });
+      }
+
+      // 2. Validate request body against track schema via SSOT structure.
+      // We set the group property in req.body to match the groupId parameter
+      req.body.group = groupId;
+
+      const validated = validateFullObject('track', req.body);
+      if (sendErrorsIfInvalid(res, validated)) {
+        return;
+      }
+
+      const { title, body, status } = validated.data;
+
+      // 3. Insert row into track table
+      const result = await pool.query(
+        `INSERT INTO track (title, body, "group", status)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [title, body, groupId, status]
+      );
+
+      return res.status(201).json({
+        success: true,
+        data: result.rows[0]
+      });
+    } catch (error) {
+      console.error('Error creating activity:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // GET /api/tracker/activities/:activityId/records

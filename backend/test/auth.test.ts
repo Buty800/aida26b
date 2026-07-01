@@ -13,6 +13,7 @@ class FakeDb {
     this.business_users = [];
     this.groups = [];
     this.user_groups = [];
+    this.tracks = [];
     this.nextUserId = Math.max(...users.map((user) => user.id)) + 1;
   }
 
@@ -220,6 +221,25 @@ class FakeDb {
           };
         })
         .sort((a, b) => a.user_id.localeCompare(b.user_id));
+      return { rows };
+    }
+    if (sql.startsWith('INSERT INTO track')) {
+      const track = {
+        id: this.tracks.length + 1,
+        title: params[0],
+        body: params[1] || null,
+        group: params[2],
+        status: params[3],
+        created_at: new Date().toISOString()
+      };
+      this.tracks.push(track);
+      return { rows: [track] };
+    }
+    if (sql.startsWith('SELECT id, title, body, "group", status, created_at FROM track')) {
+      const groupId = params[0];
+      const rows = this.tracks
+        .filter((t) => t.group === groupId)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       return { rows };
     }
 
@@ -548,5 +568,82 @@ test('GET & POST group invitations and members endpoints work as expected', asyn
     assert.equal(membersRes.body.data[1].user_id, 'reader');
     assert.equal(membersRes.body.data[1].role, 'member');
     assert.equal(membersRes.body.data[1].status, 'active');
+  });
+});
+
+test('GET & POST group activities (tracks) endpoints work as expected', async () => {
+  const db = await makeDb();
+  db.business_users = [
+    { username: 'editor', displayName: 'Editor User', password: '...', created_at: new Date().toISOString() },
+    { username: 'reader', displayName: 'Reader User', password: '...', created_at: new Date().toISOString() }
+  ];
+
+  await withServer(db, async (baseUrl) => {
+    // 1. Log in
+    const cookieEditor = await login(baseUrl, 'editor', 'editorpass');
+    const cookieReader = await login(baseUrl, 'reader', 'readerpass');
+
+    // 2. Editor creates a group
+    const createRes = await request(baseUrl, '/api/tracker/groups', {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        displayname: 'Workout Club',
+        description: null
+      }
+    });
+    const groupId = createRes.body.data.id;
+
+    // 3. Reader (not a member of the group) attempts to view activities -> should return 403
+    const forbiddenGet = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
+      cookie: cookieReader
+    });
+    assert.equal(forbiddenGet.status, 403);
+
+    // 4. Reader attempts to create an activity -> should return 403 (reader is not admin/member)
+    const forbiddenPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
+      method: 'POST',
+      cookie: cookieReader,
+      body: {
+        title: 'Morning Jog',
+        body: 'Run 5km around the park',
+        status: 'active'
+      }
+    });
+    assert.equal(forbiddenPost.status, 403);
+
+    // 5. Editor (admin) creates an activity with invalid body -> should return 400
+    const invalidPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        body: 'Missing title and status'
+      }
+    });
+    assert.equal(invalidPost.status, 400);
+
+    // 6. Editor (admin) creates an activity successfully -> should return 201
+    const successfulPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
+      method: 'POST',
+      cookie: cookieEditor,
+      body: {
+        title: 'Morning Jog',
+        body: 'Run 5km around the park',
+        status: 'active'
+      }
+    });
+    assert.equal(successfulPost.status, 201);
+    assert.equal(successfulPost.body.success, true);
+    assert.equal(successfulPost.body.data.title, 'Morning Jog');
+    assert.equal(successfulPost.body.data.group, groupId);
+
+    // 7. Editor (admin/active member) views the activities -> should return 200 and one activity
+    const getRes = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
+      cookie: cookieEditor
+    });
+    assert.equal(getRes.status, 200);
+    assert.equal(getRes.body.success, true);
+    assert.equal(getRes.body.data.length, 1);
+    assert.equal(getRes.body.data[0].title, 'Morning Jog');
   });
 });
