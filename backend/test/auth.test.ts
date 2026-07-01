@@ -79,6 +79,16 @@ class FakeDb {
     if (sql.startsWith('SELECT * FROM users') || sql.startsWith('SELECT users.* FROM users')) {
       return { rows: this.business_users };
     }
+    if (sql.startsWith('SELECT username, displayname FROM users')) {
+      return {
+        rows: this.business_users
+          .map((u) => ({
+            username: u.username,
+            displayname: u.displayName || u.displayname,
+          }))
+          .sort((a, b) => a.username.localeCompare(b.username)),
+      };
+    }
 
     // Handle queries that wrap the users query in a CTE/derived table or use COUNT
     if (/FROM\s*\(\s*SELECT\s+\*\s+FROM\s+users/i.test(sql) || /FROM\s+users/i.test(sql)) {
@@ -251,5 +261,30 @@ test('first login users must change password before using the app', async () => 
     
     // Now returns 403 because raw tables are restricted to admin
     assert.equal((await request(baseUrl, '/api/users', { cookie: tempCookie })).status, 403);
+  });
+});
+
+test('GET /api/tracker/users requires authentication and returns the list of all business users', async () => {
+  const db = await makeDb();
+  // Seed some business users
+  db.business_users = [
+    { username: 'charlie', displayName: 'Charlie Brown', password: 'scrypt$...', created_at: new Date().toISOString() },
+    { username: 'alice', displayName: 'Alice Smith', password: 'scrypt$...', created_at: new Date().toISOString() }
+  ];
+  await withServer(db, async (baseUrl) => {
+    // 1. Without auth cookie, should return 401
+    const responseUnauth = await request(baseUrl, '/api/tracker/users');
+    assert.equal(responseUnauth.status, 401);
+
+    // 2. With auth cookie, should return 200 and list sorted by username
+    const cookie = await login(baseUrl, 'editor', 'editorpass');
+    const response = await request(baseUrl, '/api/tracker/users', { cookie });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.success, true);
+    assert.equal(response.body.data.length, 2);
+    assert.equal(response.body.data[0].username, 'alice');
+    assert.equal(response.body.data[0].displayname, 'Alice Smith');
+    assert.equal(response.body.data[1].username, 'charlie');
+    assert.equal(response.body.data[1].displayname, 'Charlie Brown');
   });
 });

@@ -158,15 +158,18 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/users
   app.get('/api/tracker/users', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Fetch all registered users from public.users (username, displayname) to allow user search for invites/friends
-    return res.json({
-      success: true,
-      data: [
-        { username: 'alice', displayname: 'Alice Smith' },
-        { username: 'bob', displayname: 'Bob Johnson' }
-      ]
-    });
+    try {
+      const result = await pool.query(
+        'SELECT username, displayname FROM users ORDER BY username ASC'
+      );
+      return res.json({
+        success: true,
+        data: result.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching tracker users:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // GET /api/tracker/groups
