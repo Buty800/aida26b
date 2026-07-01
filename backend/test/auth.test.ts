@@ -11,6 +11,8 @@ class FakeDb {
     this.sessions = [];
     this.audit = [];
     this.business_users = [];
+    this.groups = [];
+    this.user_groups = [];
     this.nextUserId = Math.max(...users.map((user) => user.id)) + 1;
   }
 
@@ -106,6 +108,45 @@ class FakeDb {
       };
       this.business_users.push(user);
       return { rows: [user] };
+    }
+    if (sql.startsWith('INSERT INTO groups')) {
+      const group = {
+        id: 'group-' + Math.random().toString(36).substring(2, 11),
+        displayname: params[0],
+        description: params[1] || null,
+        created_at: new Date().toISOString()
+      };
+      this.groups.push(group);
+      return { rows: [group] };
+    }
+    if (sql.startsWith('INSERT INTO user_group')) {
+      const userGroup = {
+        id_relation: 'relation-uuid',
+        user_id: params[0],
+        group_id: params[1],
+        role: sql.includes("'admin'") ? 'admin' : (params[2] || 'member'),
+        status: sql.includes("'active'") ? 'active' : (params[3] || 'invited'),
+        created_at: new Date().toISOString()
+      };
+      this.user_groups.push(userGroup);
+      return { rows: [userGroup] };
+    }
+    if (sql.startsWith('SELECT g.id, g.displayname, g.description, g.created_at, ug.role')) {
+      const userId = params[0];
+      const rows = this.user_groups
+        .filter((ug) => ug.user_id === userId && ug.status === 'active')
+        .map((ug) => {
+          const group = this.groups.find((g) => g.id === ug.group_id);
+          return {
+            id: group?.id,
+            displayname: group?.displayname,
+            description: group?.description,
+            created_at: group?.created_at,
+            role: ug.role
+          };
+        })
+        .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
+      return { rows };
     }
 
     throw new Error(`Unhandled query: ${sql}`);
@@ -286,5 +327,55 @@ test('GET /api/tracker/users requires authentication and returns the list of all
     assert.equal(response.body.data[0].displayname, 'Alice Smith');
     assert.equal(response.body.data[1].username, 'charlie');
     assert.equal(response.body.data[1].displayname, 'Charlie Brown');
+  });
+});
+
+test('GET and POST /api/tracker/groups handles group creation and lists active user groups', async () => {
+  const db = await makeDb();
+  await withServer(db, async (baseUrl) => {
+    // 1. Without auth, GET /api/tracker/groups should return 401
+    const unauthGet = await request(baseUrl, '/api/tracker/groups');
+    assert.equal(unauthGet.status, 401);
+
+    // 2. Log in
+    const cookie = await login(baseUrl, 'editor', 'editorpass');
+
+    // 3. GET /api/tracker/groups should return empty array
+    const initialGet = await request(baseUrl, '/api/tracker/groups', { cookie });
+    assert.equal(initialGet.status, 200);
+    assert.equal(initialGet.body.success, true);
+    assert.equal(initialGet.body.data.length, 0);
+
+    // 4. POST /api/tracker/groups to create a new group
+    const createRes = await request(baseUrl, '/api/tracker/groups', {
+      method: 'POST',
+      cookie,
+      body: {
+        displayname: 'Exactas Runners',
+        description: 'Group for runners at Exactas'
+      }
+    });
+    assert.equal(createRes.status, 201);
+    assert.equal(createRes.body.success, true);
+    assert.ok(createRes.body.data.id);
+    assert.equal(createRes.body.data.displayname, 'Exactas Runners');
+
+    // 5. GET /api/tracker/groups again, should return the newly created group with role 'admin'
+    const afterCreateGet = await request(baseUrl, '/api/tracker/groups', { cookie });
+    assert.equal(afterCreateGet.status, 200);
+    assert.equal(afterCreateGet.body.success, true);
+    assert.equal(afterCreateGet.body.data.length, 1);
+    assert.equal(afterCreateGet.body.data[0].displayname, 'Exactas Runners');
+    assert.equal(afterCreateGet.body.data[0].role, 'admin');
+
+    // 6. POST with invalid payload should return 400 (validation error)
+    const invalidCreate = await request(baseUrl, '/api/tracker/groups', {
+      method: 'POST',
+      cookie,
+      body: {
+        description: 'Missing displayname'
+      }
+    });
+    assert.equal(invalidCreate.status, 400);
   });
 });

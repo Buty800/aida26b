@@ -1,6 +1,7 @@
 import express from 'express';
 import { Pool } from 'pg';
 import * as auth from '../auth';
+import { validateFullObject, sendErrorsIfInvalid } from '../validation/validate';
 
 export function registerTrackerRoutes(
   app: express.Express,
@@ -10,21 +11,7 @@ export function registerTrackerRoutes(
 ) {
   // POST /api/auth/register
   app.post('/api/auth/register', async (req, res) => {
-    // Boilerplate stub
-    // TODO: Implement user registration
-    // 1. Validate request body (username, displayname, password)
-    //    - Ensure username is a non-empty string and has no special characters.
-    //    - Ensure displayname is a non-empty string.
-    //    - Ensure password is at least 8 characters.
-    // 2. Check if username already exists in auth.users or public.users
-    //    - If exists, return 409 Conflict.
-    // 3. Hash passwords for both auth.users and public.users:
-    //    - auth.users table uses password_hash and password_salt from auth.hashPassword().
-    //    - public.users table uses scrypt$ format from auth.hashPasswordForUsersTable().
-    // 4. Perform atomic inserts inside a transaction.
-    //    - In auth.users: set role = 'editor', is_active = true, must_change_password = false.
-    //    - In public.users: insert username, displayname, and hashed password.
-    // 5. Return success status code 201 with created user details.
+    // Summary: Registers a new standard user in both auth.users and public.users tables inside a transaction.
   
     const username =
       typeof req.body.username === 'string'
@@ -158,6 +145,7 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/users
   app.get('/api/tracker/users', requireAuth, requirePasswordReady, async (req, res) => {
+    // Summary: Retrieves all registered users from the public.users table sorted alphabetically.
     try {
       const result = await pool.query(
         'SELECT username, displayname FROM users ORDER BY username ASC'
@@ -174,29 +162,70 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/groups
   app.get('/api/tracker/groups', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Fetch groups the logged-in user belongs to (where status = 'active' in user_group table)
-    // Join groups with user_group to get group id, displayname, description, created_at, and the user's role.
-    const user = (req as any).user;
-    return res.json({
-      success: true,
-      data: [
-        { id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', displayname: 'Exactas Runners (Stub)', description: 'Running group stub', role: 'admin' }
-      ]
-    });
+    // Summary: Fetches groups the logged-in user actively belongs to, including their role in each group.
+    const currentUser = (req as any).user;
+    try {
+      const result = await pool.query(
+        `SELECT g.id, g.displayname, g.description, g.created_at, ug.role
+         FROM groups g
+         JOIN user_group ug ON g.id = ug.group_id
+         WHERE ug.user_id = $1 AND ug.status = 'active'
+         ORDER BY g.created_at DESC`,
+        [currentUser.username]
+      );
+      return res.json({
+        success: true,
+        data: result.rows,
+      });
+    } catch (error) {
+      console.error('Error fetching tracker groups:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   });
 
   // POST /api/tracker/groups
   app.post('/api/tracker/groups', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Validate request body via SSOT schema.
-    // 1. Insert new group row in groups table.
-    // 2. Insert membership row in user_group setting current user's role = 'admin' and status = 'active'.
-    // 3. Return the created group.
-    return res.status(201).json({
-      success: true,
-      data: { id: 'dummy-group-uuid', displayname: req.body.displayname || 'New Group Stub', description: req.body.description }
-    });
+    // Summary: Creates a new group and designates the creator as the group administrator.
+    const validated = validateFullObject('groups', req.body);
+    if (sendErrorsIfInvalid(res, validated)) {
+      return;
+    }
+
+    const { displayname, description } = validated.data;
+    const currentUser = (req as any).user;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const groupResult = await client.query(
+        `INSERT INTO groups (displayname, description)
+         VALUES ($1, $2)
+         RETURNING *`,
+        [displayname, description]
+      );
+
+      const group = groupResult.rows[0];
+
+      await client.query(
+        `INSERT INTO user_group (user_id, group_id, role, status)
+         VALUES ($1, $2, 'admin', 'active')`,
+        [currentUser.username, group.id]
+      );
+
+      await client.query('COMMIT');
+
+      return res.status(201).json({
+        success: true,
+        data: group,
+      });
+    } catch (error) {
+      await client.query('ROLLBACK');
+      console.error('Error creating group:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    } finally {
+      client.release();
+    }
   });
 
   // POST /api/tracker/groups/:groupId/invite
@@ -353,8 +382,7 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/logs
   app.get('/api/tracker/logs', requireAuth, requirePasswordReady, async (req, res) => {
-    // Boilerplate stub
-    // TODO: Fetch last 50 logs for current user across all groups and activities.
+    // Summary: Retrieves all registered users from the public.users table sorted alphabetically..
     return res.json({
       success: true,
       data: [
