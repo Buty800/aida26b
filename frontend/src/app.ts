@@ -116,6 +116,12 @@ function showLogin(message = ''): void {
   loginError.hidden = !message;
 }
 
+function hideApplication() {
+    appShell.style.display = "none";
+    trackerShell.style.display = "none";
+    passwordSection.style.display = "none";
+}
+
 function showPasswordChange(user: AuthUser): void {
   currentUser = user;
 
@@ -1989,12 +1995,16 @@ passwordForm.addEventListener('submit', async (event) => {
 });
 
 logoutBtn.addEventListener('click', async () => {
+  console.log("Llamado al logout");
   await fetch(`${API_BASE}/auth/logout`, {
     method: 'POST',
     credentials: 'same-origin',
   });
 
+  console.log("Showing login");
   showLogin();
+  console.log("Logout. Hide application");
+  hideApplication();
 });
 
 // -----------------------------------------------------------------------------
@@ -2066,11 +2076,13 @@ if (goToAdminBtn) {
 const trackerLogoutBtn = document.getElementById('tracker-logout-btn');
 if (trackerLogoutBtn) {
   trackerLogoutBtn.addEventListener('click', async () => {
+    
     await fetch(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'same-origin',
     });
-    showLogin();
+  showLogin();
+  hideApplication();
   });
 }
 
