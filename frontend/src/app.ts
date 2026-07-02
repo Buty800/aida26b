@@ -1994,19 +1994,6 @@ passwordForm.addEventListener('submit', async (event) => {
   }
 });
 
-logoutBtn.addEventListener('click', async () => {
-  console.log("Llamado al logout");
-  await fetch(`${API_BASE}/auth/logout`, {
-    method: 'POST',
-    credentials: 'same-origin',
-  });
-
-  console.log("Showing login");
-  showLogin();
-  console.log("Logout. Hide application");
-  hideApplication();
-});
-
 // -----------------------------------------------------------------------------
 // Tracker Routing and Interface Boilerplate
 // -----------------------------------------------------------------------------
