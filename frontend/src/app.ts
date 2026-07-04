@@ -2089,6 +2089,54 @@ const trackerTabs = {
   }
 };
 
+
+let statGroupsCount: HTMLSpanElement;
+let statFriendsCount: HTMLSpanElement;
+let statLogsCount: HTMLSpanElement;
+
+function cacheDashboardElements() {
+  statGroupsCount = document.getElementById(
+    'stat-groups-count'
+  ) as HTMLSpanElement;
+
+  statFriendsCount = document.getElementById(
+    'stat-friends-count'
+  ) as HTMLSpanElement;
+
+  statLogsCount = document.getElementById(
+    'stat-logs-count'
+  ) as HTMLSpanElement;
+}
+
+cacheDashboardElements();
+
+
+async function loadDashboardStats() {
+  try {
+    const response = await fetch(`${API_BASE}/tracker/stats`, {
+      credentials: 'same-origin',
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to load dashboard stats');
+    }
+
+    const result = await response.json();
+
+    statGroupsCount.textContent = result.data.groups.toString();
+    statFriendsCount.textContent = result.data.friends.toString();
+    statLogsCount.textContent = result.data.logs.toString();
+  } catch (error) {
+    console.error('Error loading dashboard stats:', error);
+  }
+}
+
+trackerTabs.dashboard.btn.addEventListener('click', async () => {
+  await loadDashboardStats();
+});
+
+loadDashboardStats();
+
 function switchTrackerTab(tabKey: 'dashboard' | 'groups' | 'friends') {
   Object.entries(trackerTabs).forEach(([key, value]) => {
     if (value.btn && value.section) {

@@ -818,4 +818,91 @@ export function registerTrackerRoutes(
       return res.status(500).json({ error: 'Internal server error' });
     }
   });
+
+
+
+  async function getCount(
+    pool: Pool,
+    tableName: string,
+    whereClause: string,
+    params: unknown[] = []
+  ): Promise<number> {
+    const result = await pool.query(
+      `
+      SELECT COUNT(*) AS count
+      FROM ${tableName}
+      WHERE ${whereClause}
+      `,
+      params
+    );
+
+    return Number(result.rows[0].count);
+  }
+  
+  
+  async function getGroupCount(
+    pool: Pool,
+    username: string
+  ): Promise<number> {
+    return getCount(
+      pool,
+      'user_group',
+      'user_id = $1 AND status = $2',
+      [username, 'active']
+    );
+  }
+
+  async function getFriendCount(
+    pool: Pool,
+    username: string
+  ): Promise<number> {
+    return getCount(
+      pool,
+      'friends',
+      '(friend1 = $1 OR friend2 = $1) AND request = $2',
+      [username, 'accepted']
+    );
+  }
+
+  async function getLogCount(
+    pool: Pool,
+    username: string
+  ): Promise<number> {
+    return getCount(
+      pool,
+      'log',
+      'user_id = $1',
+      [username]
+    );
+  }
+
+  // GET /api/tracker/stats
+  app.get(
+    '/api/tracker/stats',
+    requireAuth,
+    requirePasswordReady,
+    async (req, res) => {
+      const currentUser = (req as any).user;
+
+      try {
+        const groups = await getGroupCount(pool, currentUser.username);
+        const friends = await getFriendCount(pool, currentUser.username);
+        const logs = await getLogCount(pool, currentUser.username);
+
+        return res.json({
+          success: true,
+          data: {
+            groups,
+            friends,
+            logs,
+          },
+        });
+      } catch (error) {
+        console.error('Error fetching tracker stats:', error);
+        return res.status(500).json({
+          error: 'Internal server error',
+        });
+      }
+    }
+  );
 }
