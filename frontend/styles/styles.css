@@ -1050,25 +1050,44 @@ textarea:focus {
 
 /* responsive extensions */
 @media (max-width: 900px) {
-    .tracker-layout {
-        grid-template-columns: 1fr;
+    /* 1. Use the parent class to increase specificity over global grid rules */
+    div.tracker-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
     }
-    .tracker-sidebar {
+
+    /* 2. Specific selector removes the need for !important */
+    .tracker-layout .tracker-sidebar {
+        display: flex;
         flex-direction: row;
+        align-items: center;
+        justify-content: space-between; /* Spreads them evenly across the row */
+        gap: 12px;
+        
+        /* Set a clean height using box-sizing to account for padding */
+        height: 60px; 
         border-right: none;
         border-bottom: 1px solid var(--border);
-        padding-right: 0;
-        padding-bottom: 12px;
-        overflow-x: auto;
+        padding: 8px var(--container-padding, 16px);
+        box-sizing: border-box;
     }
-    .sidebar-btn {
+
+    /* 3. Target buttons through their parent to beat global button rules */
+    .tracker-sidebar .sidebar-btn {
+        flex: 1;                /* ◄ This forces them to fill all the available row space equally */
+        width: 100%;            /* ◄ Tells them to expand to that flex basis */
+        max-width: 100%;
+        
+        text-align: center;
         white-space: nowrap;
-        width: auto;
+        
+        /* Control the exact vertical footprint safely */
+        height: 40px;           /* ◄ Explicit height overrides global min-heights */
+        min-height: 0;          /* ◄ Explicitly crushes the global 44px min-height trap */
+        padding: 0 16px;        /* ◄ Left/Right padding only; vertical is handled by height + line-height */
+        line-height: 40px;      /* ◄ Centers the text perfectly inside the 40px height */
+        
+        box-sizing: border-box;
     }
-    .group-columns {
-        grid-template-columns: 1fr;
-    }
-    .friends-layout {
-        grid-template-columns: 1fr;
-    }
-}
+}
