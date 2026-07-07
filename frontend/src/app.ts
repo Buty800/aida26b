@@ -1877,13 +1877,16 @@ if (toggleAuthLink) {
     e.preventDefault();
     isRegisterMode = !isRegisterMode;
     if (displaynameGroup && loginTitle && loginSubmitBtn) {
+      const passwordHint = document.getElementById('password-hint');
       if (isRegisterMode) {
         displaynameGroup.style.display = 'block';
+        if (passwordHint) passwordHint.style.display = 'block';
         loginTitle.textContent = 'Registrarse';
         loginSubmitBtn.textContent = 'Registrarse';
         toggleAuthLink.textContent = '¿Ya tienes cuenta? Ingresa';
       } else {
         displaynameGroup.style.display = 'none';
+        if (passwordHint) passwordHint.style.display = 'none';
         loginTitle.textContent = 'Ingresar';
         loginSubmitBtn.textContent = 'Ingresar';
         toggleAuthLink.textContent = '¿No tienes cuenta? Regístrate';
@@ -1911,7 +1914,8 @@ loginForm.addEventListener('submit', async (event) => {
       });
 
       if (!response.ok) {
-        loginError.textContent = 'Error al registrar usuario (nombre de usuario duplicado)';
+        const err = await response.json().catch(() => ({}));
+        loginError.textContent = err.error || 'Error al registrar usuario';
         loginError.hidden = false;
         return;
       }
