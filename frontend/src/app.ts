@@ -2424,8 +2424,8 @@ async function loadTrackerFriends() {
 // Reusable modal controllers
 const trackerModal = document.getElementById('tracker-modal') as HTMLElement;
 const modalTitle = document.getElementById('modal-title') as HTMLElement;
-const modalFormFields = document.getElementById('modal-form-fields') as HTMLElement;
-const trackerModalForm = document.getElementById('tracker-modal-form') as HTMLFormElement;
+let modalFormFields = document.getElementById('modal-form-fields') as HTMLElement;
+let trackerModalForm = document.getElementById('tracker-modal-form') as HTMLFormElement;
 
 function openTrackerModal(title: string, fieldsHtml: string, onSubmit: (e: Event) => void) {
   if (trackerModal && modalTitle && modalFormFields) {
@@ -2444,6 +2444,8 @@ function openTrackerModal(title: string, fieldsHtml: string, onSubmit: (e: Event
     // Rebind submit action
     const newForm = trackerModalForm.cloneNode(true) as HTMLFormElement;
     trackerModalForm.parentNode?.replaceChild(newForm, trackerModalForm);
+    trackerModalForm = newForm;
+    modalFormFields = newForm.querySelector('#modal-form-fields') as HTMLElement;
     
     const reBoundCancelBtn = newForm.querySelector('#modal-cancel-btn');
     if (reBoundCancelBtn) {
