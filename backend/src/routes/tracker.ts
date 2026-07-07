@@ -166,7 +166,7 @@ export function registerTrackerRoutes(
     const currentUser = (req as any).user;
     try {
       const result = await pool.query(
-        `SELECT g.id, g.displayname, g.description, g.created_at, ug.role
+        `SELECT g.id, g.displayname, g.description, g.created_at, ug.role, ug.status
          FROM groups g
          JOIN user_group ug ON g.id = ug.group_id
          WHERE ug.user_id = $1 AND ug.status = 'active'
