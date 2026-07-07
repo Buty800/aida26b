@@ -2505,6 +2505,18 @@ if (createGroupBtn) {
   });
 }
 
+const backToGroupsBtn = document.getElementById('back-to-groups-btn');
+if (backToGroupsBtn) {
+  backToGroupsBtn.addEventListener('click', () => {
+    const groupsList = document.getElementById('groups-list');
+    const groupDetailsView = document.getElementById('group-details-view');
+    if (groupsList) groupsList.style.display = 'grid';
+    if (groupDetailsView) groupDetailsView.style.display = 'none';
+    currentGroupId = null;
+    currentGroupRole = null;
+  });
+}
+
 const addFriendTriggerBtn = document.getElementById('add-friend-trigger-btn');
 if (addFriendTriggerBtn) {
   addFriendTriggerBtn.addEventListener('click', () => {
