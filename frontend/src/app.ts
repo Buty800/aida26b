@@ -2295,11 +2295,15 @@ async function showTrackerGroupDetails(groupId: string, name: string, desc: stri
   // Enforce role-based actions on the UI
   const inviteMemberBtn = document.getElementById('invite-member-btn');
   const addActivityBtn = document.getElementById('add-activity-btn');
+  const deleteGroupBtn = document.getElementById('delete-group-btn');
   if (inviteMemberBtn) {
     inviteMemberBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
   }
   if (addActivityBtn) {
     addActivityBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
+  }
+  if (deleteGroupBtn) {
+    deleteGroupBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
   }
 
   // Hide stats if open, show columns
@@ -2357,18 +2361,22 @@ async function loadGroupActivities(groupId: string) {
       return;
     }
 
-    activitiesList.innerHTML = activities.map((act: any) => `
+    activitiesList.innerHTML = activities.map((act: any) => {
+      const escapedTitle = act.title.replace(/'/g, "\\'");
+      const isAdmin = currentGroupRole === 'admin';
+      return `
       <div class="activity-item">
-        <div class="activity-info" style="cursor:pointer;" onclick="window.openActivityStats('${act.id}', '${act.title.replace(/'/g, "\\'")}')">
+        <div class="activity-info" style="cursor:pointer;" onclick="window.openActivityStats('${act.id}', '${escapedTitle}')">
           <h4>${act.title}</h4>
           <p>${act.body || 'Sin descripción'}</p>
         </div>
         <div class="activity-actions">
-          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Registrar</button>
-          <button class="nav-toggle-btn" onclick="window.openActivityStats('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Progreso</button>
+          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${escapedTitle}')">Registrar</button>
+          <button class="nav-toggle-btn" onclick="window.openActivityStats('${act.id}', '${escapedTitle}')">Progreso</button>
+          ${isAdmin ? `<button class="delete-btn-sm" onclick="window.deleteActivity('${currentGroupId}', '${act.id}')" style="margin-bottom:0;">−</button>` : ''}
         </div>
       </div>
-    `).join('');
+    `}).join('');
   } catch (error) {
     console.error('Activities load failed:', error);
     activitiesList.innerHTML = `<p class="error-text">Error de conexión</p>`;
@@ -2388,15 +2396,34 @@ async function loadGroupMembers(groupId: string) {
     const resAnswer = await response.json();
     const members = resAnswer.data || [];
 
-    membersList.innerHTML = members.map((member: any) => `
-      <div class="member-item">
-        <div class="member-info">
-          <span class="name">${member.displayname || member.user_id}</span>
-          <span class="username">@${member.user_id}</span>
+    const isAdmin = currentGroupRole === 'admin';
+
+    let html = members.map((member: any) => {
+      const canKick = isAdmin && member.role !== 'admin';
+      return `
+        <div class="member-item">
+          <div class="member-info">
+            <span class="name">${member.displayname || member.user_id}</span>
+            <span class="username">@${member.user_id}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge ${member.role === 'admin' ? 'admin' : 'member'}">${member.status === 'active' ? (member.role === 'admin' ? 'Admin' : 'Miembro') : 'Pendiente'}</span>
+            ${canKick ? `<button class="delete-btn-sm" onclick="window.kickMember('${groupId}', '${member.user_id}')">−</button>` : ''}
+          </div>
         </div>
-        <span class="badge ${member.role === 'admin' ? 'admin' : 'member'}">${member.status === 'active' ? (member.role === 'admin' ? 'Admin' : 'Miembro') : 'Pendiente'}</span>
-      </div>
-    `).join('');
+      `;
+    }).join('');
+
+    // Leave group button for non-admins
+    if (!isAdmin) {
+      html += `
+        <div style="margin-top:12px;text-align:center;">
+          <button class="delete-btn" onclick="window.leaveGroup('${groupId}')" style="width:100%;">Salir del grupo</button>
+        </div>
+      `;
+    }
+
+    membersList.innerHTML = html;
   } catch (error) {
     console.error('Members load failed:', error);
     membersList.innerHTML = `<p class="error-text">Error de conexión</p>`;
@@ -2427,6 +2454,7 @@ async function loadTrackerFriends() {
             <div class="friend-avatar">${initials}</div>
             <h4 class="friend-name">${friend.displayname || friend.username}</h4>
             <span class="friend-username">@${friend.username}</span>
+            <button class="delete-btn-sm" onclick="window.removeFriend('${friend.username}')" style="margin-top:6px;">−</button>
           </div>
         `;
       }).join('');
@@ -2459,6 +2487,7 @@ async function loadTrackerFriends() {
               <span class="name">${req.displayname || req.username}</span>
               <span class="username">@${req.username} (Enviada)</span>
             </div>
+            <button class="delete-btn" onclick="window.respondFriendRequest('${req.username}', 'rejected')">Cancelar</button>
           </div>
         `;
       });
@@ -2567,6 +2596,11 @@ if (backToGroupsBtn) {
     window.history.pushState({ tab: 'groups' }, '', '/groups');
   });
 }
+
+document.getElementById('delete-group-btn')?.addEventListener('click', () => {
+  if (!currentGroupId) return;
+  (window as any).deleteGroup(currentGroupId);
+});
 
 const addFriendTriggerBtn = document.getElementById('add-friend-trigger-btn');
 if (addFriendTriggerBtn) {
@@ -2878,17 +2912,21 @@ function renderStats(useSum: boolean) {
             <th data-sort="value">Valor</th>
             <th data-sort="fecha">Fecha</th>
             <th data-sort="commentar">Comentario</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
-          ${data.records.map((r: any) => `
+          ${data.records.map((r: any) => {
+            const canDelete = r.user_id === currentUser?.username || currentGroupRole === 'admin';
+            return `
             <tr>
               <td>${r.displayname || r.user_id}</td>
               <td>${r.value}</td>
               <td>${new Date(r.fecha).toLocaleDateString()}</td>
               <td>${r.commentar || ''}</td>
+              <td>${canDelete ? `<button class="delete-btn-sm" onclick="window.deleteLogRecord('${currentStatsActivityId}', '${r.id}')">−</button>` : ''}</td>
             </tr>
-          `).join('')}
+          `}).join('')}
         </tbody>
       </table>
     </div>
@@ -3239,6 +3277,87 @@ document.getElementById('stats-close-btn')?.addEventListener('click', () => {
   document.getElementById('stats-count-btn')?.classList.remove('active');
   currentStatsUseSum = true;
 });
+
+async function apiDelete(path: string, options: {
+  confirmMsg?: string;
+  successMsg: string;
+  refresh?: () => void;
+}) {
+  if (options.confirmMsg && !confirm(options.confirmMsg)) return;
+  try {
+    const response = await apiFetch(path, { method: 'DELETE' });
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      showErrorMessage(err.error || 'Error');
+      return;
+    }
+    showSuccessMessage(options.successMsg);
+    options.refresh?.();
+  } catch {
+    showErrorMessage('Error de conexión');
+  }
+}
+
+(window as any).kickMember = (groupId: string, userId: string) =>
+  apiDelete(`/tracker/groups/${groupId}/members/${userId}`, {
+    confirmMsg: '¿Expulsar a este miembro del grupo?',
+    successMsg: 'Miembro expulsado',
+    refresh: () => loadGroupMembers(groupId),
+  });
+
+(window as any).leaveGroup = (groupId: string) => {
+  const username = currentUser?.username;
+  if (!username) return;
+  apiDelete(`/tracker/groups/${groupId}/members/${username}`, {
+    confirmMsg: '¿Salir del grupo? Esta acción no se puede deshacer.',
+    successMsg: 'Has salido del grupo',
+    refresh: () => {
+      currentGroupId = null;
+      currentGroupRole = null;
+      loadTrackerGroups();
+    },
+  });
+};
+
+(window as any).deleteActivity = (groupId: string, activityId: string) =>
+  apiDelete(`/tracker/groups/${groupId}/activities/${activityId}`, {
+    confirmMsg: '¿Eliminar esta actividad? También se eliminarán todos los registros asociados.',
+    successMsg: 'Actividad eliminada',
+    refresh: () => loadGroupActivities(groupId),
+  });
+
+(window as any).deleteLogRecord = (activityId: string, recordId: string) =>
+  apiDelete(`/tracker/activities/${activityId}/records/${recordId}`, {
+    confirmMsg: '¿Eliminar este registro?',
+    successMsg: 'Registro eliminado',
+    refresh: () => {
+      const title = (document.getElementById('stats-activity-title') as HTMLElement)?.textContent;
+      if (currentStatsActivityId && title) (window as any).openActivityStats(currentStatsActivityId, title);
+    },
+  });
+
+(window as any).removeFriend = (username: string) =>
+  apiDelete(`/tracker/friends/${username}`, {
+    confirmMsg: '¿Eliminar amigo?',
+    successMsg: 'Amigo eliminado',
+    refresh: () => loadTrackerFriends(),
+  });
+
+(window as any).deleteGroup = (groupId: string) =>
+  apiDelete(`/tracker/groups/${groupId}`, {
+    confirmMsg: '¿Eliminar el grupo por completo? Se eliminarán todas las actividades, registros y miembros.',
+    successMsg: 'Grupo eliminado',
+    refresh: () => {
+      const groupsList = document.getElementById('groups-list');
+      const groupDetailsView = document.getElementById('group-details-view');
+      if (groupsList) groupsList.style.display = 'grid';
+      if (groupDetailsView) groupDetailsView.style.display = 'none';
+      currentGroupId = null;
+      currentGroupRole = null;
+      window.history.pushState({ tab: 'groups' }, '', '/groups');
+      loadTrackerGroups();
+    },
+  });
 
 (window as any).respondFriendRequest = async (username: string, action: string) => {
   try {

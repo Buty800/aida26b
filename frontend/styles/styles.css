@@ -187,6 +187,27 @@ button:hover {
     color: white;
 }
 
+.delete-btn-sm {
+    background-color: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+}
+
+.delete-btn-sm:hover {
+    opacity: 0.85;
+}
+
 .add-btn {
     background-color: var(--primary);
     color: white;

@@ -888,6 +888,167 @@ export function registerTrackerRoutes(
     }
   });
 
+  // DELETE /api/tracker/groups/:groupId/members/:userId
+  app.delete('/api/tracker/groups/:groupId/members/:userId', requireAuth, requirePasswordReady, async (req, res) => {
+    const { groupId, userId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      // Check group exists and current user is either admin or the member themselves (leave)
+      const membership = await pool.query(
+        `SELECT role, status FROM user_group WHERE user_id = $1 AND group_id = $2`,
+        [currentUser.username, groupId]
+      );
+      if (membership.rows.length === 0) {
+        return res.status(403).json({ error: 'Not a member of this group' });
+      }
+      if (membership.rows[0].status !== 'active') {
+        return res.status(403).json({ error: 'Active membership required' });
+      }
+
+      const isAdmin = membership.rows[0].role === 'admin';
+      const isSelf = currentUser.username === userId;
+
+      if (!isAdmin && !isSelf) {
+        return res.status(403).json({ error: 'Only admins can kick other members' });
+      }
+
+      if (isSelf && isAdmin) {
+        return res.status(400).json({ error: 'Transfer admin before leaving, or delete the group' });
+      }
+
+      const result = await pool.query(
+        `DELETE FROM user_group WHERE user_id = $1 AND group_id = $2 RETURNING *`,
+        [userId, groupId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'User is not a member' });
+      }
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Error removing group member:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // DELETE /api/tracker/groups/:groupId
+  app.delete('/api/tracker/groups/:groupId', requireAuth, requirePasswordReady, async (req, res) => {
+    const { groupId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      const membership = await pool.query(
+        `SELECT role FROM user_group WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+      if (membership.rows.length === 0) {
+        return res.status(403).json({ error: 'Not a member of this group' });
+      }
+      if (membership.rows[0].role !== 'admin') {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      // ON DELETE CASCADE removes user_group rows, activities, and logs
+      await pool.query('DELETE FROM groups WHERE id = $1', [groupId]);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting group:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // DELETE /api/tracker/groups/:groupId/activities/:activityId
+  app.delete('/api/tracker/groups/:groupId/activities/:activityId', requireAuth, requirePasswordReady, async (req, res) => {
+    const { groupId, activityId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      const membership = await pool.query(
+        `SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2 AND role = 'admin' AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+      if (membership.rows.length === 0) {
+        return res.status(403).json({ error: 'Admin access required' });
+      }
+
+      const result = await pool.query(
+        `DELETE FROM track WHERE id = $1 AND "group" = $2 RETURNING *`,
+        [activityId, groupId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Activity not found' });
+      }
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting activity:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // DELETE /api/tracker/activities/:activityId/records/:recordId
+  app.delete('/api/tracker/activities/:activityId/records/:recordId', requireAuth, requirePasswordReady, async (req, res) => {
+    const { activityId, recordId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      // Find the record and its group
+      const recordCheck = await pool.query(
+        `SELECT l.user_id, t."group" FROM log l JOIN track t ON l.track = t.id WHERE l.id = $1 AND l.track = $2`,
+        [recordId, activityId]
+      );
+      if (recordCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Record not found' });
+      }
+
+      const { user_id: ownerId, group: groupId } = recordCheck.rows[0];
+      const isOwner = currentUser.username === ownerId;
+
+      if (!isOwner) {
+        // Non-owner: check if they are a group admin
+        const adminCheck = await pool.query(
+          `SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2 AND role = 'admin' AND status = 'active'`,
+          [currentUser.username, groupId]
+        );
+        if (adminCheck.rows.length === 0) {
+          return res.status(403).json({ error: 'Only the record owner or a group admin can delete this record' });
+        }
+      }
+
+      await pool.query('DELETE FROM log WHERE id = $1', [recordId]);
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // DELETE /api/tracker/friends/:username
+  app.delete('/api/tracker/friends/:username', requireAuth, requirePasswordReady, async (req, res) => {
+    const currentUser = (req as any).user;
+    const { username } = req.params;
+
+    try {
+      const [friend1, friend2] = currentUser.username < username
+        ? [currentUser.username, username]
+        : [username, currentUser.username];
+
+      const result = await pool.query(
+        `DELETE FROM friends WHERE friend1 = $1 AND friend2 = $2 RETURNING *`,
+        [friend1, friend2]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Friendship not found' });
+      }
+
+      return res.json({ success: true });
+    } catch (error) {
+      console.error('Error removing friend:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
 
 
   async function getCount(
