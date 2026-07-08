@@ -153,37 +153,44 @@
                                 <h2 id="group-detail-title">Nombre del Grupo</h2>
                                 <p id="group-detail-desc">Descripción del grupo</p>
                             </div>
-                            
-                            <div class="group-columns">
-                                <div class="group-main-column">
-                                    <div class="tracker-card">
-                                        <div class="card-header">
-                                            <h3>Actividades</h3>
-                                            <button id="add-activity-btn" class="action-btn-sm">Nueva Actividad +</button>
-                                        </div>
-                                        <div id="group-activities-list" class="activities-list">
-                                            <p class="empty-message">Boilerplate: Actividades del grupo.</p>
+
+                            <div class="group-content">
+                                <div class="group-columns" id="group-columns">
+                                    <div class="group-main-column">
+                                        <div class="tracker-card">
+                                            <div class="card-header">
+                                                <h3>Actividades</h3>
+                                                <button id="add-activity-btn" class="action-btn-sm">Nueva Actividad +</button>
+                                            </div>
+                                            <div id="group-activities-list" class="activities-list">
+                                                <p class="empty-message">Boilerplate: Actividades del grupo.</p>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div class="tracker-card">
-                                        <h3>Comparación de Progreso</h3>
-                                        <div id="group-comparison-container" class="comparison-container">
-                                            <p class="empty-message">Selecciona una actividad para ver la comparación.</p>
+                                    <div class="group-side-column">
+                                        <div class="tracker-card tracker-card-members">
+                                            <div class="card-header">
+                                                <h3>Miembros</h3>
+                                                <button id="invite-member-btn" class="action-btn-sm">Invitar +</button>
+                                            </div>
+                                            <div id="group-members-list" class="members-list">
+                                                <p class="empty-message">Boilerplate: Miembros del grupo.</p>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="group-side-column">
-                                    <div class="tracker-card">
-                                        <div class="card-header">
-                                            <h3>Miembros</h3>
-                                            <button id="invite-member-btn" class="action-btn-sm">Invitar +</button>
+                                <div id="group-stats-container" class="stats-container" style="display: none;">
+                                    <div class="stats-header">
+                                        <h3 id="stats-activity-title"></h3>
+                                        <div class="stats-toggle">
+                                            <button id="stats-sum-btn" class="toggle-btn active">Suma</button>
+                                            <button id="stats-count-btn" class="toggle-btn">Conteo</button>
                                         </div>
-                                        <div id="group-members-list" class="members-list">
-                                            <p class="empty-message">Boilerplate: Miembros del grupo.</p>
-                                        </div>
+                                        <button id="stats-close-btn" class="close-btn">✕</button>
                                     </div>
+                                    <div id="stats-content" class="stats-content"></div>
                                 </div>
                             </div>
                         </div>

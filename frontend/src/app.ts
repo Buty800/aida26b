@@ -2302,9 +2302,11 @@ async function showTrackerGroupDetails(groupId: string, name: string, desc: stri
     addActivityBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
   }
 
-  // Clear comparison container in case it had old data
-  const comparisonContainer = document.getElementById('group-comparison-container');
-  if (comparisonContainer) comparisonContainer.innerHTML = '';
+  // Hide stats if open, show columns
+  const columns = document.getElementById('group-columns');
+  const statsContainer = document.getElementById('group-stats-container');
+  if (columns) columns.style.display = '';
+  if (statsContainer) statsContainer.style.display = 'none';
 
   await loadGroupActivities(groupId);
   await loadGroupMembers(groupId);
@@ -2357,13 +2359,13 @@ async function loadGroupActivities(groupId: string) {
 
     activitiesList.innerHTML = activities.map((act: any) => `
       <div class="activity-item">
-        <div class="activity-info">
+        <div class="activity-info" style="cursor:pointer;" onclick="window.openActivityStats('${act.id}', '${act.title.replace(/'/g, "\\'")}')">
           <h4>${act.title}</h4>
           <p>${act.body || 'Sin descripción'}</p>
         </div>
         <div class="activity-actions">
           <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Registrar</button>
-          <button class="nav-toggle-btn" onclick="window.loadActivityComparisons('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Progreso</button>
+          <button class="nav-toggle-btn" onclick="window.openActivityStats('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Progreso</button>
         </div>
       </div>
     `).join('');
@@ -2733,47 +2735,476 @@ if (addActivityBtn) {
   );
 };
 
-(window as any).loadActivityComparisons = async (activityId: string, activityTitle: string) => {
-  const container = document.getElementById('group-comparison-container');
+const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
+
+let currentStatsActivityId: string | null = null;
+let currentStatsData: any = null;
+let currentStatsUseSum = true;
+
+function renderStats(useSum: boolean) {
+  const data = currentStatsData;
+  if (!data) return;
+  const container = document.getElementById('stats-content');
   if (!container) return;
 
+  const field = useSum ? 'sum' : 'count';
+  const totalField = useSum ? 'total_sum' : 'total_count';
+
+  // Assign stable colors per user
+  const userColorMap: Record<string, string> = {};
+  data.per_user.forEach((u: any, i: number) => {
+    userColorMap[u.user_id] = CHART_COLORS[i % CHART_COLORS.length];
+  });
+
+  container.innerHTML = `
+    <!-- Summary cards -->
+    <div class="stats-summary">
+      <div class="stat-summary-card">
+        <div class="stat-value">${data.summary[totalField]}</div>
+        <div class="stat-label">${useSum ? 'Suma Total' : 'Total Registros'}</div>
+      </div>
+      <div class="stat-summary-card">
+        <div class="stat-value">${data.summary.average}</div>
+        <div class="stat-label">Promedio</div>
+      </div>
+      <div class="stat-summary-card">
+        <div class="stat-value">${data.summary.max}</div>
+        <div class="stat-label">Máximo</div>
+      </div>
+      <div class="stat-summary-card">
+        <div class="stat-value">${data.summary.min}</div>
+        <div class="stat-label">Mínimo</div>
+      </div>
+      <div class="stat-summary-card">
+        <div class="stat-value">${data.records.length}</div>
+        <div class="stat-label">Entradas</div>
+      </div>
+    </div>
+
+    <!-- Pie + Heatmap row -->
+    <div class="stats-charts-row section">
+      <div class="stats-chart-col">
+        <h4 style="margin:0 0 16px 0;">Distribución por Usuario</h4>
+        <div class="stats-pie-section">
+          <div class="pie-chart-wrapper">
+            <div class="pie-chart" style="background: ${buildPieGradient(data.per_user, field, userColorMap)};"></div>
+          </div>
+          <div class="pie-legend">
+            ${data.per_user.map((u: any) => `
+              <div class="pie-legend-item">
+                <div class="pie-legend-color" style="background:${userColorMap[u.user_id]}"></div>
+                <span class="pie-legend-label">${u.displayname || u.user_id}</span>
+                <span class="pie-legend-value">${u[field]}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="stats-chart-col">
+        <h4 style="margin:0 0 16px 0;">Mapa de Calor — ${new Date().toLocaleString('es', { month: 'long' })}</h4>
+        ${buildHeatmap(data.daily)}
+      </div>
+    </div>
+
+    <!-- 100% stacked area chart -->
+    <div class="stats-svg-section section">
+      <h4>${useSum ? 'Distribución por Suma' : 'Distribución por Cantidad de Registros'} — 100% Apilado por Mes</h4>
+      ${buildStackedAreaChart(data.per_user_per_month, field, userColorMap)}
+      <div class="svg-legend">
+        ${data.per_user.map((u: any) => `
+          <div class="svg-legend-item">
+            <div class="svg-legend-swatch" style="background:${userColorMap[u.user_id]}"></div>
+            <span>${u.displayname || u.user_id}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Cumulative chart -->
+    <div class="stats-svg-section section">
+      <h4>Progreso Acumulado</h4>
+      ${buildCumulativeChart(data.records, field, userColorMap)}
+      <div class="svg-legend">
+        ${data.per_user.map((u: any) => `
+          <div class="svg-legend-item">
+            <div class="svg-legend-swatch" style="background:${userColorMap[u.user_id]}"></div>
+            <span>${u.displayname || u.user_id}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+
+    <!-- Records table -->
+    <div class="stats-records-section section">
+      <h4>Registros Individuales</h4>
+      <table class="records-table" id="stats-records-table">
+        <thead>
+          <tr>
+            <th data-sort="displayname">Usuario</th>
+            <th data-sort="value">Valor</th>
+            <th data-sort="fecha">Fecha</th>
+            <th data-sort="commentar">Comentario</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.records.map((r: any) => `
+            <tr>
+              <td>${r.displayname || r.user_id}</td>
+              <td>${r.value}</td>
+              <td>${new Date(r.fecha).toLocaleDateString()}</td>
+              <td>${r.commentar || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Bind table sort
+  document.querySelectorAll('#stats-records-table th[data-sort]').forEach((th) => {
+    th.addEventListener('click', () => {
+      const key = (th as HTMLElement).dataset.sort!;
+      const tbody = document.querySelector('#stats-records-table tbody')!;
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const dir = (th as any)._sortDir === 'asc' ? -1 : 1;
+      (th as any)._sortDir = dir === 1 ? 'asc' : 'desc';
+      rows.sort((a, b) => {
+        const va = (a.children as any)[Array.from(th.parentNode!.children).indexOf(th)].textContent;
+        const vb = (b.children as any)[Array.from(th.parentNode!.children).indexOf(th)].textContent;
+        return dir * (key === 'value' ? (Number(va) - Number(vb)) : va.localeCompare(vb));
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    });
+  });
+}
+
+function buildPieGradient(perUser: any[], field: string, colors: Record<string, string>): string {
+  const total = perUser.reduce((s: number, u: any) => s + u[field], 0);
+  if (total === 0) return '#e5e7eb';
+  let current = 0;
+  const stops = perUser.map((u: any) => {
+    const pct = (u[field] / total) * 100;
+    const start = current;
+    current += pct;
+    return `${colors[u.user_id]} ${start}% ${current}%`;
+  });
+  return `conic-gradient(${stops.join(', ')})`;
+}
+
+function buildStackedAreaChart(perMonth: any[], field: string, colors: Record<string, string>): string {
+  const months = [...new Set(perMonth.map((r: any) => `${r.year}-${String(r.month).padStart(2, '0')}`))].sort();
+  if (months.length === 0) return '<p class="empty-text">Sin datos por mes</p>';
+
+  // Single month: render horizontal stacked bar instead of empty polygon
+  if (months.length === 1) {
+    const rows = perMonth.filter((r: any) => `${r.year}-${String(r.month).padStart(2, '0')}` === months[0]);
+    const total = rows.reduce((s: number, r: any) => s + r[field], 0) || 1;
+    const bars = rows.map((r: any) => {
+      const pct = (r[field] / total) * 100;
+      return `<div style="height:24px;width:${pct}%;background:${colors[r.user_id] || '#ccc'};display:inline-block;min-width:2px;border-radius:${pct === 100 ? '6px' : '6px 0 0 6px'}"></div>`;
+    }).join('');
+    return `<div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
+      <span style="font-size:0.85rem;font-weight:600;min-width:60px;">${months[0]}</span>
+      <div style="flex:1;height:24px;border-radius:6px;overflow:hidden;background:var(--surface-2);">${bars}</div>
+      <span style="font-size:0.85rem;color:var(--text-muted);min-width:50px;text-align:right;">${total}</span>
+    </div>`;
+  }
+
+  const svgW = 700, svgH = 280, padL = 50, padR = 20, padT = 10, padB = 35;
+  const chartW = svgW - padL - padR;
+  const chartH = svgH - padT - padB;
+
+  // Build per-month data with percentages
+  const monthData = months.map((m) => {
+    const [y, mo] = m.split('-').map(Number);
+    const rows = perMonth.filter((r: any) => r.year === y && r.month === mo);
+    const total = rows.reduce((s: number, r: any) => s + r[field], 0);
+    return { label: `${mo}/${y}`, total, rows: rows.map((r: any) => ({ userId: r.user_id, val: r[field], pct: total > 0 ? (r[field] / total) * 100 : 0 })) };
+  });
+
+  const allUserIds = [...new Set(perMonth.map((r: any) => r.user_id))];
+
+  // Helper: for a user, get their adjusted value at each month index (interpolated)
+  function getUserValues(userId: string): number[] {
+    const known: { idx: number; val: number }[] = [];
+    monthData.forEach((md, i) => {
+      const entry = md.rows.find((r: any) => r.userId === userId);
+      if (entry) known.push({ idx: i, val: entry.pct });
+    });
+    if (known.length === 0) return months.map(() => 0);
+    return months.map((_, i) => {
+      if (known.length === 1) return known[0].val;
+      // Before first known
+      if (i < known[0].idx) return 0;
+      // After last known: flat at last value
+      if (i > known[known.length - 1].idx) return known[known.length - 1].val;
+      // Between known points: linear interpolation
+      const after = known.find((k) => k.idx >= i)!;
+      if (after.idx === i) return after.val;
+      const before = known.filter((k) => k.idx < i).pop()!;
+      const ratio = (i - before.idx) / (after.idx - before.idx);
+      return before.val + (after.val - before.val) * ratio;
+    });
+  }
+
+  // Build polygons: each band goes from cumulative of previous users to cumulative up to this user
+  const polys = allUserIds.map((uid, uIdx) => {
+    const vals = getUserValues(uid);
+    const topEdge: string[] = [];
+    const bottomEdge: string[] = [];
+    months.forEach((_, i) => {
+      // Cumulative up to this user
+      let cumUpToHere = 0;
+      for (let j = 0; j <= uIdx; j++) {
+        const uv = getUserValues(allUserIds[j]);
+        cumUpToHere += uv[i];
+      }
+      // Cumulative before this user
+      let cumBefore = cumUpToHere - vals[i];
+      const x = padL + (i / (months.length - 1 || 1)) * chartW;
+      topEdge.push(`${x},${padT + chartH * (1 - cumUpToHere / 100)}`);
+      bottomEdge.push(`${x},${padT + chartH * (1 - cumBefore / 100)}`);
+    });
+    if (topEdge.length < 2) return '';
+    const points = [...topEdge, ...bottomEdge.reverse()].join(' ');
+    return `<polygon points="${points}" fill="${colors[uid] || '#ccc'}" opacity="0.85"/>`;
+  }).filter(Boolean).join('\n');
+
+  // X-axis labels
+  const xLabels = months.map((m, i) => {
+    const x = padL + (i / (months.length - 1 || 1)) * chartW;
+    return `<text x="${x}" y="${svgH - 5}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${m}</text>`;
+  }).join('');
+
+  // Y-axis labels (0%, 25%, 50%, 75%, 100%)
+  const yLabels = [0, 25, 50, 75, 100].map((pct) => {
+    const y = padT + chartH * (1 - pct / 100);
+    return `<text x="${padL - 5}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${pct}%</text>`;
+  }).join('');
+
+  // Y-axis grid lines
+  const yGrid = [25, 50, 75].map((pct) => {
+    const y = padT + chartH * (1 - pct / 100);
+    return `<line x1="${padL}" y1="${y}" x2="${padL + chartW}" y2="${y}" stroke="var(--border)" stroke-dasharray="4" stroke-width="1"/>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
+    ${yGrid}
+    ${polys}
+    ${xLabels}
+    ${yLabels}
+    <line x1="${padL}" y1="${padT + chartH}" x2="${padL + chartW}" y2="${padT + chartH}" stroke="var(--border)" stroke-width="1"/>
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="var(--border)" stroke-width="1"/>
+  </svg>`;
+}
+
+function buildCumulativeChart(records: any[], field: string, colors: Record<string, string>): string {
+  // Group records by user, sort by fecha, compute running total
+  const userGroups: Record<string, { fecha: string; running: number }[]> = {};
+  const allDates = [...new Set(records.map((r: any) => r.fecha.slice(0, 10)))].sort();
+  if (allDates.length === 0) return '<p class="empty-text">Sin datos</p>';
+
+  // Single date: render horizontal bars per user instead of empty lines
+  if (allDates.length === 1) {
+    const grouped: Record<string, number> = {};
+    records.forEach((r: any) => {
+      const key = r.user_id;
+      grouped[key] = (grouped[key] || 0) + (field === 'count' ? 1 : r.value);
+    });
+    const max = Math.max(...Object.values(grouped), 1);
+    const userColorMap = colors;
+    // We don't have displaynames here, use user_id
+    const bars = Object.entries(grouped).map(([uid, val]) => {
+      const pct = (val / max) * 100;
+      return `<div class="comparison-row">
+        <div class="comparison-label">
+          <span>${uid}</span>
+          <span>${val}</span>
+        </div>
+        <div class="comparison-bar-bg">
+          <div class="comparison-bar-fill" style="width:${pct}%;background:${userColorMap[uid] || '#3b82f6'}"></div>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div style="display:flex;flex-direction:column;gap:12px;">${bars}</div>`;
+  }
+
+  const allUserIds = [...new Set(records.map((r: any) => r.user_id))];
+
+  allUserIds.forEach((uid) => {
+    const userRecords = records.filter((r: any) => r.user_id === uid).sort((a: any, b: any) => a.fecha.localeCompare(b.fecha));
+    let running = 0;
+    userGroups[uid] = userRecords.map((r: any) => {
+      running += field === 'count' ? 1 : r.value;
+      return { fecha: r.fecha.slice(0, 10), running };
+    });
+  });
+
+  const svgW = 700, svgH = 280, padL = 50, padR = 20, padT = 10, padB = 35;
+  const chartW = svgW - padL - padR;
+  const chartH = svgH - padT - padB;
+
+  const maxVal = Math.max(...Object.values(userGroups).flat().map((g: any) => g.running), 1);
+
+  const polys = allUserIds.map((uid) => {
+    const userPts = userGroups[uid];
+    if (!userPts || userPts.length === 0) return '';
+    const pts = userPts.map((g) => {
+      const i = allDates.indexOf(g.fecha);
+      const x = padL + (i / (allDates.length - 1 || 1)) * chartW;
+      const y = padT + chartH * (1 - g.running / maxVal);
+      return `${x},${y}`;
+    });
+    // Start line from 0 at the date BEFORE the first data point (if it's not the first date)
+    const firstIdx = allDates.indexOf(userPts[0].fecha);
+    const zeroY = padT + chartH;
+    const startSegment = firstIdx > 0 ? `${padL + ((firstIdx - 1) / (allDates.length - 1 || 1)) * chartW},${zeroY} ` : '';
+    // Extend flat to the last date
+    const lastX = padL + chartW;
+    const lastY = padT + chartH * (1 - userPts[userPts.length - 1].running / maxVal);
+    return `<polyline points="${startSegment}${pts.join(' ')} ${lastX},${lastY}" fill="none" stroke="${colors[uid] || '#ccc'}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }).filter(Boolean).join('\n');
+
+  const xLabels = allDates.filter((_, i) => i % Math.max(1, Math.floor(allDates.length / 6)) === 0 || i === allDates.length - 1).map((d, _i, arr) => {
+    const i = allDates.indexOf(d);
+    const x = padL + (i / (allDates.length - 1 || 1)) * chartW;
+    const short = d.slice(5);
+    return `<text x="${x}" y="${svgH - 5}" text-anchor="middle" font-size="10" fill="var(--text-muted)">${short}</text>`;
+  }).join('');
+
+  const yLabels = [0, Math.round(maxVal / 4), Math.round(maxVal / 2), Math.round(maxVal * 3 / 4), maxVal].map((v) => {
+    const y = padT + chartH * (1 - v / maxVal);
+    return `<text x="${padL - 5}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--text-muted)">${v}</text>`;
+  }).join('');
+
+  const yGrid = [Math.round(maxVal / 4), Math.round(maxVal / 2), Math.round(maxVal * 3 / 4)].map((v) => {
+    const y = padT + chartH * (1 - v / maxVal);
+    return `<line x1="${padL}" y1="${y}" x2="${padL + chartW}" y2="${y}" stroke="var(--border)" stroke-dasharray="4" stroke-width="1"/>`;
+  }).join('');
+
+  return `<svg viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg">
+    ${yGrid}
+    ${polys}
+    ${xLabels}
+    ${yLabels}
+    <line x1="${padL}" y1="${padT + chartH}" x2="${padL + chartW}" y2="${padT + chartH}" stroke="var(--border)" stroke-width="1"/>
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="var(--border)" stroke-width="1"/>
+  </svg>`;
+}
+
+function buildHeatmap(daily: any[]): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const dayMap: Record<string, number> = {};
+  daily.forEach((d: any) => {
+    const dateStr = d.date.slice(0, 10);
+    if (dateStr.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)) {
+      dayMap[parseInt(dateStr.slice(-2), 10)] = d.sum;
+    }
+  });
+
+  const maxDayVal = Math.max(...Object.values(dayMap), 1);
+
+  const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0=Sun
+  const cells: string[] = [];
+  // pad empty cells before month starts
+  for (let d = 0; d < firstDayOfWeek; d++) {
+    cells.push('<div></div>');
+  }
+  for (let d = 1; d <= daysInMonth; d++) {
+    const val = dayMap[d] || 0;
+    const intensity = val > 0 ? Math.min(1, val / maxDayVal) : 0;
+    const r = Math.round(235 - intensity * 200);
+    const g = Math.round(235 - intensity * 200);
+    const b = Math.round(245 - intensity * 200);
+    const bg = intensity > 0 ? `rgb(${r},${g},${b})` : 'var(--surface-2)';
+    cells.push(`<div class="heatmap-cell" style="background:${bg};display:flex;align-items:center;justify-content:center;font-size:0.65rem;color:${intensity > 0.5 ? 'white' : 'var(--text-muted)'}" title="Día ${d}: ${val}">${d}</div>`);
+  }
+
+  return `<div class="heatmap-grid">
+    <div class="heatmap-day-label">Dom</div><div class="heatmap-day-label">Lun</div><div class="heatmap-day-label">Mar</div>
+    <div class="heatmap-day-label">Mié</div><div class="heatmap-day-label">Jue</div><div class="heatmap-day-label">Vie</div>
+    <div class="heatmap-day-label">Sáb</div>
+    ${cells.join('')}
+  </div>
+  <div class="heatmap-legend">
+    <span>Menos</span>
+    <div class="heatmap-legend-cell" style="background:var(--surface-2)"></div>
+    <div class="heatmap-legend-cell" style="background:rgb(188, 198, 214)"></div>
+    <div class="heatmap-legend-cell" style="background:rgb(118, 138, 184)"></div>
+    <div class="heatmap-legend-cell" style="background:rgb(48, 78, 154)"></div>
+    <div class="heatmap-legend-cell" style="background:rgb(28, 38, 84)"></div>
+    <span>Más</span>
+  </div>`;
+}
+
+(window as any).openActivityStats = async (activityId: string, activityTitle: string) => {
+  const columns = document.getElementById('group-columns');
+  const container = document.getElementById('group-stats-container');
+  const titleEl = document.getElementById('stats-activity-title');
+  if (!columns || !container || !titleEl) return;
+
+  columns.style.display = 'none';
+  container.style.display = 'block';
+  titleEl.textContent = activityTitle;
+  currentStatsActivityId = activityId;
+
+  const contentEl = document.getElementById('stats-content');
+  if (!contentEl) return;
+  contentEl.innerHTML = '<p class="empty-text">Cargando estadísticas...</p>';
+
   try {
-    const response = await apiFetch(`/tracker/activities/${activityId}/comparisons`);
+    const response = await apiFetch(`/tracker/activities/${activityId}/stats`);
     if (!response.ok) {
-      container.innerHTML = `<p class="error-text">Error al cargar comparaciones</p>`;
+      contentEl.innerHTML = '<p class="error-text">Error al cargar estadísticas</p>';
       return;
     }
     const resAnswer = await response.json();
-    const data = resAnswer.data || [];
-
-    if (data.length === 0) {
-      container.innerHTML = `<h4>Progreso de Miembros: ${activityTitle}</h4><p class="empty-text">No hay registros para comparar.</p>`;
-      return;
-    }
-
-    const maxVal = Math.max(...data.map((c: any) => c.total_value), 1);
-    container.innerHTML = `
-      <h4>Progreso de Miembros: ${activityTitle}</h4>
-      ${data.map((item: any) => {
-        const percentage = Math.round((item.total_value / maxVal) * 100);
-        return `
-          <div class="comparison-row">
-            <div class="comparison-label">
-              <span>${item.displayname || item.username}</span>
-              <span>${item.total_value} (${percentage}%)</span>
-            </div>
-            <div class="comparison-bar-bg">
-              <div class="comparison-bar-fill" style="width: ${percentage}%;"></div>
-            </div>
-          </div>
-        `;
-      }).join('')}
-    `;
+    currentStatsData = resAnswer.data;
+    currentStatsUseSum = true;
+    renderStats(true);
   } catch (error) {
-    console.error('Comparisons load failed:', error);
-    container.innerHTML = `<p class="error-text">Error de conexión</p>`;
+    console.error('Stats load failed:', error);
+    contentEl.innerHTML = '<p class="error-text">Error de conexión</p>';
   }
 };
+
+
+// Toggle sum/count
+document.getElementById('stats-sum-btn')?.addEventListener('click', () => {
+  const btn = document.getElementById('stats-sum-btn');
+  const other = document.getElementById('stats-count-btn');
+  if (!btn || !other || btn.classList.contains('active')) return;
+  btn.classList.add('active');
+  other.classList.remove('active');
+  currentStatsUseSum = true;
+  renderStats(true);
+});
+
+document.getElementById('stats-count-btn')?.addEventListener('click', () => {
+  const btn = document.getElementById('stats-count-btn');
+  const other = document.getElementById('stats-sum-btn');
+  if (!btn || !other || btn.classList.contains('active')) return;
+  btn.classList.add('active');
+  other.classList.remove('active');
+  currentStatsUseSum = false;
+  renderStats(false);
+});
+
+// Close stats
+document.getElementById('stats-close-btn')?.addEventListener('click', () => {
+  const columns = document.getElementById('group-columns');
+  const container = document.getElementById('group-stats-container');
+  if (columns) columns.style.display = '';
+  if (container) container.style.display = 'none';
+  // Reset toggle
+  document.getElementById('stats-sum-btn')?.classList.add('active');
+  document.getElementById('stats-count-btn')?.classList.remove('active');
+  currentStatsUseSum = true;
+});
 
 (window as any).respondFriendRequest = async (username: string, action: string) => {
   try {

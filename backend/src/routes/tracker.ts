@@ -623,6 +623,75 @@ export function registerTrackerRoutes(
     }
   });
 
+  // GET /api/tracker/activities/:activityId/stats
+  app.get('/api/tracker/activities/:activityId/stats', requireAuth, requirePasswordReady, async (req, res) => {
+    const { activityId } = req.params;
+    const currentUser = (req as any).user;
+
+    try {
+      const trackCheck = await pool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
+      if (trackCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'Activity not found' });
+      }
+
+      const groupId = trackCheck.rows[0].group;
+
+      const memberCheck = await pool.query(
+        `SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
+        [currentUser.username, groupId]
+      );
+      if (memberCheck.rows.length === 0) {
+        return res.status(403).json({ error: "Must be an active member of the activity's group to view stats" });
+      }
+
+      const [summary, perUser, perUserPerMonth, daily, records] = await Promise.all([
+        pool.query(
+          `SELECT COUNT(*)::INTEGER AS total_count, COALESCE(SUM(value), 0)::INTEGER AS total_sum,
+                  ROUND(COALESCE(AVG(value), 0), 1)::NUMERIC(10,1) AS average,
+                  COALESCE(MAX(value), 0)::INTEGER AS max, COALESCE(MIN(value), 0)::INTEGER AS min
+           FROM log WHERE track = $1`, [activityId]
+        ),
+        pool.query(
+          `SELECT l.user_id, u.displayname, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
+           FROM log l JOIN users u ON l.user_id = u.username
+           WHERE l.track = $1 GROUP BY l.user_id, u.displayname`, [activityId]
+        ),
+        pool.query(
+          `SELECT EXTRACT(YEAR FROM l.fecha)::INTEGER AS year, EXTRACT(MONTH FROM l.fecha)::INTEGER AS month,
+                  l.user_id, u.displayname, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
+           FROM log l JOIN users u ON l.user_id = u.username
+           WHERE l.track = $1
+           GROUP BY year, month, l.user_id, u.displayname
+           ORDER BY year, month`, [activityId]
+        ),
+        pool.query(
+          `SELECT l.fecha::DATE AS date, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
+           FROM log l WHERE l.track = $1
+           GROUP BY date ORDER BY date`, [activityId]
+        ),
+        pool.query(
+          `SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar
+           FROM log l JOIN users u ON l.user_id = u.username
+           WHERE l.track = $1 ORDER BY l.fecha DESC`, [activityId]
+        ),
+      ]);
+
+      return res.json({
+        success: true,
+        data: {
+          summary: summary.rows[0],
+          per_user: perUser.rows,
+          per_user_per_month: perUserPerMonth.rows,
+          daily: daily.rows,
+          records: records.rows,
+        }
+      });
+    } catch (error) {
+      console.error('Error fetching activity stats:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
   // GET /api/tracker/friends
   app.get('/api/tracker/friends', requireAuth, requirePasswordReady, async (req, res) => {
     // Summary: Fetches the lists of active friends, pending sent requests, and pending received requests.
