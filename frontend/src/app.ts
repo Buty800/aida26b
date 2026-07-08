@@ -2608,19 +2608,50 @@ if (addFriendTriggerBtn) {
 
 const inviteMemberBtn = document.getElementById('invite-member-btn');
 if (inviteMemberBtn) {
-  inviteMemberBtn.addEventListener('click', () => {
-    openTrackerModal(
-      'Invitar Miembro',
-      `
+  inviteMemberBtn.addEventListener('click', async () => {
+    if (!currentGroupId) return;
+
+    try {
+      const [friendsRes, membersRes] = await Promise.all([
+        apiFetch('/tracker/friends'),
+        apiFetch(`/tracker/groups/${currentGroupId}/members`)
+      ]);
+
+      if (!friendsRes.ok || !membersRes.ok) {
+        showErrorMessage('Error al cargar datos');
+        return;
+      }
+
+      const friendsData = await friendsRes.json();
+      const membersData = await membersRes.json();
+      const friends = friendsData.data?.friends || [];
+      const members = membersData.data || [];
+      const memberUsernames = new Set(members.map((m: any) => m.user_id));
+      const available = friends.filter((f: any) => !memberUsernames.has(f.username));
+
+      const noFriends = available.length === 0;
+      const fieldsHtml = noFriends ? `
         <div class="form-group">
-          <label for="invite-username-input">Usuario (@)</label>
-          <input id="invite-username-input" name="username" required>
+          <label for="invite-username-input">Amigos disponibles</label>
+          <select id="invite-username-input" name="username" required disabled style="opacity:0.5;">
+            <option value="">Ninguno Disponible</option>
+          </select>
         </div>
-      `,
-      async (e) => {
+      ` : `
+        <div class="form-group">
+          <label for="invite-username-input">Seleccionar amigo</label>
+          <select id="invite-username-input" name="username" required>
+            <option value="">— Seleccionar —</option>
+            ${available.map((f: any) => `<option value="${f.username}">${f.displayname} (@${f.username})</option>`).join('')}
+          </select>
+        </div>
+      `;
+
+      openTrackerModal('Invitar Miembro', fieldsHtml, async (e) => {
         if (!currentGroupId) return;
         const formData = new FormData(e.target as HTMLFormElement);
-        const username = formData.get('username');
+        const username = formData.get('username') as string;
+        if (!username) return;
 
         try {
           const response = await apiFetch(`/tracker/groups/${currentGroupId}/invite`, {
@@ -2640,8 +2671,11 @@ if (inviteMemberBtn) {
           console.error('Member invite failed:', error);
           showErrorMessage('Error de conexión al invitar miembro');
         }
-      }
-    );
+      });
+    } catch (error) {
+      console.error('Failed to load friends/members:', error);
+      showErrorMessage('Error al cargar datos');
+    }
   });
 }
 
