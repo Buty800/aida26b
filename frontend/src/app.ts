@@ -606,10 +606,14 @@ function showSection(section: TableKey, pushState = true): void {
 }
 
 window.addEventListener('popstate', () => {
-  syncUrlToState();
+  if (window.location.pathname === '/panel') {
+    syncUrlToState();
 
-  if (currentUser && !currentUser.must_change_password) {
-    showSection(activeTableKey, false);
+    if (currentUser && !currentUser.must_change_password) {
+      showSection(activeTableKey, false);
+    }
+  } else {
+    renderRoute();
   }
 });
 
@@ -2045,8 +2049,18 @@ function renderRoute(): void {
       goToAdminBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
     }
 
-    // Default to active tab in sidebar
-    switchTrackerTab('dashboard');
+    // Parse tracker path for tab and group detail
+    const groupMatch = path.match(/^\/groups\/(.+)$/);
+    if (groupMatch) {
+      switchTrackerTab('groups', { updateUrl: false, loadData: false });
+      showTrackerGroupById(groupMatch[1]);
+    } else if (path === '/groups') {
+      switchTrackerTab('groups', { updateUrl: false });
+    } else if (path === '/friends') {
+      switchTrackerTab('friends', { updateUrl: false });
+    } else {
+      switchTrackerTab('dashboard', { updateUrl: false });
+    }
   }
 }
 
@@ -2141,7 +2155,7 @@ trackerTabs.dashboard.btn.addEventListener('click', async () => {
 
 loadDashboardStats();
 
-function switchTrackerTab(tabKey: 'dashboard' | 'groups' | 'friends') {
+function switchTrackerTab(tabKey: 'dashboard' | 'groups' | 'friends', { updateUrl = true, loadData = true } = {}) {
   Object.entries(trackerTabs).forEach(([key, value]) => {
     if (value.btn && value.section) {
       const active = key === tabKey;
@@ -2150,9 +2164,16 @@ function switchTrackerTab(tabKey: 'dashboard' | 'groups' | 'friends') {
     }
   });
 
-  if (tabKey === 'dashboard') loadTrackerDashboard();
-  else if (tabKey === 'groups') loadTrackerGroups();
-  else if (tabKey === 'friends') loadTrackerFriends();
+  if (loadData) {
+    if (tabKey === 'dashboard') loadTrackerDashboard();
+    else if (tabKey === 'groups') loadTrackerGroups();
+    else if (tabKey === 'friends') loadTrackerFriends();
+  }
+
+  if (updateUrl) {
+    const url = tabKey === 'dashboard' ? '/' : `/${tabKey}`;
+    window.history.pushState({ tab: tabKey }, '', url);
+  }
 }
 
 Object.entries(trackerTabs).forEach(([key, value]) => {
@@ -2255,7 +2276,7 @@ async function loadTrackerGroups() {
   }
 }
 
-async function showTrackerGroupDetails(groupId: string, name: string, desc: string, role: string) {
+async function showTrackerGroupDetails(groupId: string, name: string, desc: string, role: string, { updateUrl = true } = {}) {
   currentGroupId = groupId;
   currentGroupRole = role;
 
@@ -2287,6 +2308,33 @@ async function showTrackerGroupDetails(groupId: string, name: string, desc: stri
 
   await loadGroupActivities(groupId);
   await loadGroupMembers(groupId);
+
+  if (updateUrl) {
+    window.history.pushState(
+      { tab: 'groups', groupId, groupName: name, groupDesc: desc, groupRole: role },
+      '',
+      `/groups/${groupId}`
+    );
+  }
+}
+
+async function showTrackerGroupById(groupId: string) {
+  const state = window.history.state;
+  if (state?.tab === 'groups' && state?.groupId === groupId && state?.groupName) {
+    showTrackerGroupDetails(groupId, state.groupName, state.groupDesc || '', state.groupRole || 'member', { updateUrl: false });
+    return;
+  }
+  try {
+    const response = await apiFetch('/tracker/groups');
+    if (!response.ok) return;
+    const groups = (await response.json()).data || [];
+    const group = groups.find((g: any) => g.id === groupId);
+    if (group) {
+      showTrackerGroupDetails(group.id, group.displayname, group.description || '', group.role, { updateUrl: false });
+    }
+  } catch (error) {
+    console.error('Failed to load group:', error);
+  }
 }
 
 async function loadGroupActivities(groupId: string) {
@@ -2514,6 +2562,7 @@ if (backToGroupsBtn) {
     if (groupDetailsView) groupDetailsView.style.display = 'none';
     currentGroupId = null;
     currentGroupRole = null;
+    window.history.pushState({ tab: 'groups' }, '', '/groups');
   });
 }
 

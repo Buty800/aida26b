@@ -11,6 +11,7 @@ export default {
     path: path.resolve(__dirname, "dist"),
     filename: "aida_frontend.js",
     clean: true,
+    publicPath: '/',
   },
   resolve: {
     extensions: [".ts", ".js"],
