@@ -2466,38 +2466,35 @@ const trackerModal = document.getElementById('tracker-modal') as HTMLElement;
 const modalTitle = document.getElementById('modal-title') as HTMLElement;
 const modalFormFields = document.getElementById('modal-form-fields') as HTMLElement;
 const trackerModalForm = document.getElementById('tracker-modal-form') as HTMLFormElement;
+const modalCancelBtn = document.getElementById('modal-cancel-btn') as HTMLButtonElement | null;
+
+// Holds whichever "submit" behavior the currently open modal needs.
+let currentModalSubmitHandler: ((e: Event) => void) | null = null;
+
+function closeTrackerModal(): void {
+  trackerModal.style.display = 'none';
+}
 
 function openTrackerModal(title: string, fieldsHtml: string, onSubmit: (e: Event) => void) {
-  if (trackerModal && modalTitle && modalFormFields) {
-    modalTitle.textContent = title;
-    modalFormFields.innerHTML = fieldsHtml;
-    trackerModal.style.display = 'flex';
-    
-    // Bind cancel action
-    const cancelBtn = document.getElementById('modal-cancel-btn');
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => {
-        trackerModal.style.display = 'none';
-      });
-    }
+  if (!trackerModal || !modalTitle || !modalFormFields || !trackerModalForm) return;
 
-    // Rebind submit action
-    const newForm = trackerModalForm.cloneNode(true) as HTMLFormElement;
-    trackerModalForm.parentNode?.replaceChild(newForm, trackerModalForm);
-    
-    const reBoundCancelBtn = newForm.querySelector('#modal-cancel-btn');
-    if (reBoundCancelBtn) {
-      reBoundCancelBtn.addEventListener('click', () => {
-        trackerModal.style.display = 'none';
-      });
-    }
+  modalTitle.textContent = title;
+  modalFormFields.innerHTML = fieldsHtml;
+  currentModalSubmitHandler = onSubmit;
+  trackerModal.style.display = 'flex';
+}
 
-    newForm.addEventListener('submit', (e) => {
-      e.preventDefault();
-      onSubmit(e);
-      trackerModal.style.display = 'none';
-    });
-  }
+// Bound ONCE, when the script loads — no more cloning/replacing nodes.
+if (modalCancelBtn) {
+  modalCancelBtn.addEventListener('click', closeTrackerModal);
+}
+
+if (trackerModalForm) {
+  trackerModalForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    currentModalSubmitHandler?.(e);
+    closeTrackerModal();
+  });
 }
 
 const createGroupBtn = document.getElementById('create-group-btn');
