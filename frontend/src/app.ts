@@ -2072,7 +2072,27 @@ if (goToAdminBtn) {
   });
 }
 
-const trackerLogoutBtn = document.getElementById('tracker-logout-btn');
+function logout(btn: HTMLElement | null) {
+  
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      await fetch(`${API_BASE}/auth/logout`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+  showLogin();
+  hideApplication();
+  });
+  }
+  
+}
+
+
+
+const trackerLogoutBtn: HTMLElement | null = document.getElementById('tracker-logout-btn');
+logout(trackerLogoutBtn)
+logout(logoutBtn)
+/*
 if (trackerLogoutBtn) {
   trackerLogoutBtn.addEventListener('click', async () => {
     
@@ -2084,6 +2104,7 @@ if (trackerLogoutBtn) {
   hideApplication();
   });
 }
+*/
 
 // Tab switcher controller
 const trackerTabs = {
