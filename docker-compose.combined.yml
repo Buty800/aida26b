@@ -37,6 +37,10 @@ services:
       DB_NAME: ${DB_NAME:-faculty_management}
       DB_USER: ${DB_USER:-aida26_user}
       DB_PASSWORD: ${DB_PASSWORD:-CambiaEsta!}
+      ADMIN_DB_USER: ${ADMIN_DB_USER:-admin_user}
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD:-AdminPass123!}
+      AUTH_DB_USER: ${AUTH_DB_USER:-auth_user}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-AuthPass123!}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-yourpassword}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}

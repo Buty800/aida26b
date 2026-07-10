@@ -88,31 +88,16 @@ export function registerTrackerRoutes(
         });
       }
 
-      // Check username in public.users
-      const publicExists = await client.query(
-        'SELECT 1 FROM public.users WHERE username = $1',
-        [username]
-      );
-
-      if (publicExists.rowCount) {
-        await client.query('ROLLBACK');
-        return res.status(409).json({
-          error: 'Username already exists.',
-        });
-      }
-
       // Hashes
       const { passwordHash, passwordSalt } =
         await auth.hashPassword(password);
-
-      const trackerPassword =
-        await auth.hashPasswordForUsersTable(password);
 
       // Insert into auth.users
       await client.query(
         `INSERT INTO auth.users
           (
             username,
+            displayname,
             email,
             password_hash,
             password_salt,
@@ -121,28 +106,12 @@ export function registerTrackerRoutes(
             must_change_password
           )
         VALUES
-          ($1, NULL, $2, $3, 'editor', true, false)`,
-        [
-          username,
-          passwordHash,
-          passwordSalt,
-        ]
-      );
-
-      // Insert into public.users
-      await client.query(
-        `INSERT INTO public.users
-          (
-            username,
-            displayname,
-            password
-          )
-        VALUES
-          ($1, $2, $3)`,
+          ($1, $2, NULL, $3, $4, 'editor', true, false)`,
         [
           username,
           displayname,
-          trackerPassword,
+          passwordHash,
+          passwordSalt,
         ]
       );
 
@@ -169,7 +138,7 @@ export function registerTrackerRoutes(
   // GET /api/tracker/users
   app.get('/api/tracker/users', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
     const result = await pool.query(
-      'SELECT username, displayname FROM users ORDER BY username ASC'
+      'SELECT username, displayname FROM auth.users ORDER BY username ASC'
     );
     return res.json({
       success: true,
@@ -253,7 +222,7 @@ export function registerTrackerRoutes(
     }
 
     const userCheck = await pool.query(
-      'SELECT 1 FROM users WHERE username = $1',
+      'SELECT 1 FROM auth.users WHERE username = $1',
       [username]
     );
     if (userCheck.rows.length === 0) {
@@ -329,7 +298,7 @@ export function registerTrackerRoutes(
     const result = await pool.query(
       `SELECT ug.user_id, u.displayname, ug.role, ug.status
        FROM user_group ug
-       JOIN users u ON ug.user_id = u.username
+       JOIN auth.users u ON ug.user_id = u.username
        WHERE ug.group_id = $1
        ORDER BY ug.user_id ASC`,
       [groupId]
@@ -405,7 +374,7 @@ export function registerTrackerRoutes(
 
     const result = await pool.query(
       `SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar
-       FROM log l JOIN users u ON l.user_id = u.username
+        FROM log l JOIN auth.users u ON l.user_id = u.username
        WHERE l.track = $1 ORDER BY l.fecha DESC, l.id DESC`,
       [activityId]
     );
@@ -468,7 +437,7 @@ export function registerTrackerRoutes(
     const result = await pool.query(
       `SELECT u.username, u.displayname, COALESCE(SUM(l.value), 0)::INTEGER AS total_value
        FROM user_group ug
-       JOIN users u ON ug.user_id = u.username
+       JOIN auth.users u ON ug.user_id = u.username
        LEFT JOIN log l ON l.user_id = ug.user_id AND l.track = $1
        WHERE ug.group_id = $2 AND ug.status = 'active'
        GROUP BY u.username, u.displayname
@@ -506,13 +475,13 @@ export function registerTrackerRoutes(
       ),
       pool.query(
         `SELECT l.user_id, u.displayname, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
-         FROM log l JOIN users u ON l.user_id = u.username
+         FROM log l JOIN auth.users u ON l.user_id = u.username
          WHERE l.track = $1 GROUP BY l.user_id, u.displayname`, [activityId]
       ),
       pool.query(
         `SELECT EXTRACT(YEAR FROM l.fecha)::INTEGER AS year, EXTRACT(MONTH FROM l.fecha)::INTEGER AS month,
                 l.user_id, u.displayname, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
-         FROM log l JOIN users u ON l.user_id = u.username
+         FROM log l JOIN auth.users u ON l.user_id = u.username
          WHERE l.track = $1
          GROUP BY year, month, l.user_id, u.displayname
          ORDER BY year, month`, [activityId]
@@ -524,7 +493,7 @@ export function registerTrackerRoutes(
       ),
       pool.query(
         `SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar
-         FROM log l JOIN users u ON l.user_id = u.username
+         FROM log l JOIN auth.users u ON l.user_id = u.username
          WHERE l.track = $1 ORDER BY l.fecha DESC`, [activityId]
       ),
     ]);
@@ -549,8 +518,8 @@ export function registerTrackerRoutes(
       `SELECT f.friend1, u1.displayname AS displayname1,
               f.friend2, u2.displayname AS displayname2, f.request
        FROM friends f
-       JOIN users u1 ON f.friend1 = u1.username
-       JOIN users u2 ON f.friend2 = u2.username
+       JOIN auth.users u1 ON f.friend1 = u1.username
+       JOIN auth.users u2 ON f.friend2 = u2.username
        WHERE f.friend1 = $1 OR f.friend2 = $1`,
       [currentUser.username]
     );
@@ -593,7 +562,7 @@ export function registerTrackerRoutes(
       return res.status(400).json({ error: 'Cannot send a friend request to yourself' });
     }
 
-    const userCheck = await pool.query('SELECT 1 FROM users WHERE username = $1', [username]);
+    const userCheck = await pool.query('SELECT 1 FROM auth.users WHERE username = $1', [username]);
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Target user not found' });
     }

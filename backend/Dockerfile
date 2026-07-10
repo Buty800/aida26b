@@ -12,6 +12,7 @@ RUN npm ci
 COPY backend/src ./src
 COPY backend/tsconfig.json ./
 COPY tsconfig.base.json /app/tsconfig.base.json
+COPY shared/src /app/shared/src
 COPY database/migrations /app/database/migrations
 
 EXPOSE 3000

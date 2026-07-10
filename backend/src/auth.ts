@@ -6,8 +6,8 @@ const scrypt = promisify(crypto.scrypt);
 export type Role = 'admin' | 'editor' | 'reader';
 
 export type AuthUser = {
-  id: number;
   username: string;
+  displayname: string;
   email: string | null;
   role: Role;
   is_active: boolean;
@@ -24,15 +24,6 @@ export function isRole(value: unknown): value is Role {
 export async function hashPassword(password: string, salt = crypto.randomBytes(16).toString('hex')) {
   const key = (await scrypt(password, salt, 64)) as Buffer;
   return { passwordHash: key.toString('hex'), passwordSalt: salt };
-}
-
-export function isHashed(password: string): boolean {
-  return password.startsWith('scrypt$') || password.startsWith('pbkdf2:');
-}
-
-export async function hashPasswordForUsersTable(password: string): Promise<string> {
-  const { passwordHash, passwordSalt } = await hashPassword(password);
-  return `scrypt$${passwordSalt}$${passwordHash}`;
 }
 
 export async function verifyPassword(password: string, salt: string, expectedHash: string) {
@@ -87,8 +78,8 @@ export function clearSessionCookie(secure: boolean) {
 
 export function publicUser(row: Record<string, unknown>): AuthUser {
   return {
-    id: Number(row.id),
     username: String(row.username),
+    displayname: String(row.displayname),
     email: row.email === null || row.email === undefined ? null : String(row.email),
     role: row.role as Role,
     is_active: Boolean(row.is_active),

@@ -15,7 +15,7 @@ function localizeText(text: LocalizedText): string {
 
 export const structure = {
   tables: {
-    users: {
+    auth_users: {
       columns: {
         username: {
           type: 'string',
@@ -32,16 +32,44 @@ export const structure = {
             required: true,
           },
         },
-        password: {
+        email: {
           type: 'string',
-          label: { es: 'Contraseña', en: 'Password' },
+          label: { es: 'Email', en: 'Email' },
+          validator: {
+            nullable: true,
+          },
+        },
+        role: {
+          type: 'string',
+          label: { es: 'Rol', en: 'Role' },
+          input: 'select',
+          options: [
+            { value: 'admin', label: { es: 'Admin', en: 'Admin' } },
+            { value: 'editor', label: { es: 'Editor', en: 'Editor' } },
+            { value: 'reader', label: { es: 'Lector', en: 'Reader' } },
+          ],
           validator: {
             required: true,
           },
         },
+        is_active: {
+          type: 'boolean',
+          label: { es: 'Activo', en: 'Active' },
+          input: 'select',
+          options: [
+            { value: 'true', label: { es: 'Sí', en: 'Yes' } },
+            { value: 'false', label: { es: 'No', en: 'No' } },
+          ],
+        },
         created_at: {
           type: 'string',
           label: { es: 'Fecha de Creación', en: 'Created At' },
+          input: 'date',
+          editable: false,
+        },
+        updated_at: {
+          type: 'string',
+          label: { es: 'Última actualización', en: 'Last Updated' },
           input: 'date',
           editable: false,
         },
@@ -62,7 +90,7 @@ export const structure = {
             required: true,
           },
           foreignKey: {
-            table: 'users',
+            table: 'auth_users',
             valueField: 'username',
             labelField: 'displayname',
           },
@@ -75,7 +103,7 @@ export const structure = {
             required: true,
           },
           foreignKey: {
-            table: 'users',
+            table: 'auth_users',
             valueField: 'username',
             labelField: 'displayname',
           },
@@ -152,7 +180,7 @@ export const structure = {
             required: true,
           },
           foreignKey: {
-            table: 'users',
+            table: 'auth_users',
             valueField: 'username',
             labelField: 'displayname',
           },
@@ -275,7 +303,7 @@ export const structure = {
             required: true,
           },
           foreignKey: {
-            table: 'users',
+            table: 'auth_users',
             valueField: 'username',
             labelField: 'displayname',
           },

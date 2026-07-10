@@ -23,3 +23,13 @@ ALTER DEFAULT PRIVILEGES FOR ROLE aida26_owner IN SCHEMA public
 
 ALTER DEFAULT PRIVILEGES FOR ROLE aida26_owner IN SCHEMA public
     GRANT USAGE, SELECT ON SEQUENCES TO aida26_user;
+
+-- Application-level roles for access separation
+CREATE ROLE aida_admin;
+CREATE ROLE aida_auth;
+
+CREATE USER admin_user WITH LOGIN PASSWORD 'AdminPass123!';
+CREATE USER auth_user  WITH LOGIN PASSWORD 'AuthPass123!';
+
+GRANT aida_admin TO admin_user;
+GRANT aida_auth  TO auth_user;

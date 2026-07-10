@@ -20,13 +20,29 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Database connection
+// Database connections
 const pool = new Pool({
   host: process.env.DB_HOST,
   port: parseInt(process.env.DB_PORT || '5432', 10),
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
+});
+
+const adminPool = new Pool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME,
+  user: process.env.ADMIN_DB_USER || process.env.DB_USER,
+  password: process.env.ADMIN_DB_PASSWORD || process.env.DB_PASSWORD,
+});
+
+const authPool = new Pool({
+  host: process.env.DB_HOST,
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME,
+  user: process.env.AUTH_DB_USER || process.env.DB_USER,
+  password: process.env.AUTH_DB_PASSWORD || process.env.DB_PASSWORD,
 });
 
 // Middleware
@@ -59,12 +75,12 @@ async function audit(
   details: Record<string, unknown> = {}
 ) {
   try {
-    await pool.query(
+    await authPool.query(
       `INSERT INTO auth.audit_log
        (actor_user_id, event_type, outcome, ip, user_agent, details)
        VALUES ($1, $2, $3, $4, $5, $6)`,
       [
-        (req as AuthedRequest).user?.id ?? null,
+        (req as AuthedRequest).user?.username ?? null,
         eventType,
         outcome,
         req.ip,
@@ -84,17 +100,17 @@ async function loadSession(req: Request) {
     return null;
   }
 
-  const result = await pool.query(
+  const result = await authPool.query(
     `SELECT
        s.id AS session_id,
-       u.id,
        u.username,
+       u.displayname,
        u.email,
        u.role,
        u.is_active,
        u.must_change_password
      FROM auth.sessions s
-     JOIN auth.users u ON u.id = s.user_id
+     JOIN auth.users u ON u.username = s.user_id
      WHERE s.token_hash = $1
        AND s.expires_at > now()
        AND u.is_active = true`,
@@ -164,10 +180,10 @@ app.post('/api/auth/login', async (req, res) => {
     const password =
       typeof req.body.password === 'string' ? req.body.password : '';
 
-    const result = await pool.query(
+    const result = await authPool.query(
       `SELECT
-         id,
          username,
+         displayname,
          email,
          password_hash,
          password_salt,
@@ -194,10 +210,10 @@ app.post('/api/auth/login', async (req, res) => {
     const user = auth.publicUser(row);
     const token = auth.newSessionToken();
 
-    await pool.query(
+    await authPool.query(
       `INSERT INTO auth.sessions (user_id, token_hash, expires_at)
        VALUES ($1, $2, now() + interval '7 days')`,
-      [user.id, auth.hashToken(token)]
+      [user.username, auth.hashToken(token)]
     );
 
     (req as AuthedRequest).user = user;
@@ -227,7 +243,7 @@ app.post('/api/auth/logout', async (req, res) => {
         (req as AuthedRequest).user = user;
       }
 
-      await pool.query('DELETE FROM auth.sessions WHERE token_hash = $1', [
+      await authPool.query('DELETE FROM auth.sessions WHERE token_hash = $1', [
         auth.hashToken(token),
       ]);
 
@@ -266,9 +282,9 @@ app.post('/api/auth/change-password', requireAuth, async (req, res) => {
       });
     }
 
-    const current = await pool.query(
-      'SELECT password_hash, password_salt FROM auth.users WHERE id = $1',
-      [user.id]
+    const current = await authPool.query(
+      'SELECT password_hash, password_salt FROM auth.users WHERE username = $1',
+      [user.username]
     );
 
     const row = current.rows[0];
@@ -288,16 +304,16 @@ app.post('/api/auth/change-password', requireAuth, async (req, res) => {
 
     const { passwordHash, passwordSalt } = await auth.hashPassword(newPassword);
 
-    const result = await pool.query(
+    const result = await authPool.query(
       `UPDATE auth.users
        SET
          password_hash = $1,
          password_salt = $2,
          must_change_password = false,
          updated_at = now()
-       WHERE id = $3
-       RETURNING id, username, email, role, is_active, must_change_password`,
-      [passwordHash, passwordSalt, user.id]
+       WHERE username = $3
+       RETURNING username, displayname, email, role, is_active, must_change_password`,
+      [passwordHash, passwordSalt, user.username]
     );
 
     (req as AuthedRequest).user = auth.publicUser(result.rows[0]);
@@ -338,16 +354,16 @@ app.post(
 
       const { passwordHash, passwordSalt } = await auth.hashPassword(password);
 
-      const result = await pool.query(
+      const result = await authPool.query(
         `INSERT INTO auth.users
-         (username, email, password_hash, password_salt, role)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, username, email, role, is_active, must_change_password`,
-        [username, email, passwordHash, passwordSalt, role]
+         (username, displayname, email, password_hash, password_salt, role)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING username, displayname, email, role, is_active, must_change_password`,
+        [username, username, email, passwordHash, passwordSalt, role]
       );
 
       await audit(req, 'user_created', 'success', {
-        user_id: result.rows[0].id,
+        user_id: result.rows[0].username,
         role,
       });
 
@@ -370,36 +386,30 @@ app.post(
   requireAdmin,
   async (req, res) => {
     try {
-      const userId = Number(req.params.id);
+      const username =
+        typeof req.params.id === 'string' ? req.params.id.trim() : '';
       const password = readPassword(req.body.password);
 
-      if (!Number.isInteger(userId) || !password) {
+      if (!username || !password) {
         return res.status(400).json({
-          error: 'Valid user id and password are required',
+          error: 'Valid username and password are required',
         });
       }
 
       const { passwordHash, passwordSalt } = await auth.hashPassword(password);
 
-      const result = await pool.query(
-        `UPDATE auth.users
-         SET
-           password_hash = $1,
-           password_salt = $2,
-           must_change_password = true,
-           updated_at = now()
-         WHERE id = $3
-         RETURNING id, username, email, role, is_active, must_change_password`,
-        [passwordHash, passwordSalt, userId]
+      const result = await authPool.query(
+        'UPDATE auth.users SET password_hash = $1, password_salt = $2, must_change_password = true, updated_at = now() WHERE username = $3 RETURNING username, displayname, email, role, is_active, must_change_password',
+        [passwordHash, passwordSalt, username]
       );
 
       if (result.rows.length === 0) {
         return res.status(404).json({ error: 'User not found' });
       }
 
-      await pool.query('DELETE FROM auth.sessions WHERE user_id = $1', [userId]);
+      await authPool.query('DELETE FROM auth.sessions WHERE user_id = $1', [username]);
 
-      await audit(req, 'password_reset', 'success', { user_id: userId });
+      await audit(req, 'password_reset', 'success', { user_id: username });
 
       return res.json({ user: result.rows[0] });
     } catch (error) {
@@ -409,12 +419,12 @@ app.post(
   }
 );
 
-// Register Tracker endpoints
-registerTrackerRoutes(app, pool, requireAuth, requirePasswordReady);
+// Register Tracker endpoints (uses adminPool — no access to password hashes)
+registerTrackerRoutes(app, adminPool, requireAuth, requirePasswordReady);
 
-// Generic academic API routes (restricted to admins)
+// Generic academic API routes (restricted to admins, uses adminPool)
 app.get('/api/:tableName', requireAuth, requirePasswordReady, requireAdmin, async (req, res) => {
-  return getHandler(req, res, pool);
+  return getHandler(req, res, adminPool);
 });
 
 app.post(
@@ -423,7 +433,7 @@ app.post(
   requirePasswordReady,
   requireAdmin,
   async (req, res) => {
-    return postHandler(req, res, pool);
+    return postHandler(req, res, adminPool);
   }
 );
 
@@ -433,7 +443,7 @@ app.put(
   requirePasswordReady,
   requireAdmin,
   async (req, res) => {
-    return putHandler(req, res, pool);
+    return putHandler(req, res, adminPool);
   }
 );
 
@@ -443,7 +453,7 @@ app.delete(
   requirePasswordReady,
   requireAdmin,
   async (req, res) => {
-    return deleteHandler(req, res, pool);
+    return deleteHandler(req, res, adminPool);
   }
 );
 

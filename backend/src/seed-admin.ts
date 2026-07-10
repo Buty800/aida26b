@@ -23,17 +23,18 @@ async function main() {
 
   const { passwordHash, passwordSalt } = await hashPassword(password);
   await pool.query(
-    `INSERT INTO auth.users (username, email, password_hash, password_salt, role, is_active, must_change_password)
-     VALUES ($1, $2, $3, $4, 'admin', true, false)
+    `INSERT INTO auth.users (username, displayname, email, password_hash, password_salt, role, is_active, must_change_password)
+     VALUES ($1, $2, $3, $4, $5, 'admin', true, false)
      ON CONFLICT (username) DO UPDATE
-       SET email = EXCLUDED.email,
+       SET displayname = EXCLUDED.displayname,
+           email = EXCLUDED.email,
            password_hash = EXCLUDED.password_hash,
            password_salt = EXCLUDED.password_salt,
            role = 'admin',
            is_active = true,
            must_change_password = false,
            updated_at = now()`,
-    [username, email, passwordHash, passwordSalt],
+    [username, username, email, passwordHash, passwordSalt],
   );
 
   await pool.end();

@@ -35,6 +35,10 @@ services:
       DB_NAME: ${DB_NAME:-faculty_management}
       DB_USER: ${DB_USER:-aida26_user}
       DB_PASSWORD: ${DB_PASSWORD:-CambiaEsta!}
+      ADMIN_DB_USER: ${ADMIN_DB_USER:-admin_user}
+      ADMIN_DB_PASSWORD: ${ADMIN_DB_PASSWORD:-AdminPass123!}
+      AUTH_DB_USER: ${AUTH_DB_USER:-auth_user}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-AuthPass123!}
     ports:
       - "3000:3000"
     depends_on:
@@ -46,6 +50,7 @@ services:
       - ./backend/src:/app/backend/src
       - ./backend/package.json:/app/backend/package.json
       - ./backend/tsconfig.json:/app/backend/tsconfig.json
+      - ./shared/src:/app/shared/src
       - ./database/migrations:/app/database/migrations
       - ./tsconfig.base.json:/app/tsconfig.base.json
     command: sh -c "npm run migrate && npm run seed-admin && npm run dev"
