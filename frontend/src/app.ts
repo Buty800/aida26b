@@ -2424,11 +2424,15 @@ async function showTrackerGroupDetails(groupId: string, name: string, desc: stri
   // Enforce role-based actions on the UI
   const inviteMemberBtn = document.getElementById('invite-member-btn');
   const addActivityBtn = document.getElementById('add-activity-btn');
+  const deleteGroupBtn = document.getElementById('delete-group-btn');
   if (inviteMemberBtn) {
     inviteMemberBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
   }
   if (addActivityBtn) {
     addActivityBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
+  }
+  if (deleteGroupBtn) {
+    deleteGroupBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
   }
 
   // Hide stats if open, show columns
@@ -2488,18 +2492,22 @@ async function loadGroupActivities(groupId: string) {
       return;
     }
 
-    activitiesList.innerHTML = activities.map((act: any) => `
+    activitiesList.innerHTML = activities.map((act: any) => {
+      const escapedTitle = act.title.replace(/'/g, "\\'");
+      const isAdmin = currentGroupRole === 'admin';
+      return `
       <div class="activity-item">
         <div class="activity-info">
           <h4>${act.title}</h4>
           <p>${act.body || 'Sin descripción'}</p>
         </div>
         <div class="activity-actions">
-          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Registrar</button>
-          <button class="nav-toggle-btn" onclick="window.openActivityStats('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Progreso</button>
+          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${escapedTitle}')">Registrar</button>
+          <button class="nav-toggle-btn" onclick="window.openActivityStats('${act.id}', '${escapedTitle}')">Progreso</button>
+          ${isAdmin ? `<button class="delete-btn-sm" onclick="window.deleteActivity('${currentGroupId}', '${act.id}')" style="margin-bottom:0;">−</button>` : ''}
         </div>
       </div>
-    `).join('');
+    `}).join('');
   } catch (error) {
     console.error('Activities load failed:', error);
     activitiesList.innerHTML = `<p class="error-text">Error de conexión</p>`;
@@ -2518,16 +2526,33 @@ async function loadGroupMembers(groupId: string) {
     }
     const resAnswer = await response.json();
     const members = resAnswer.data || [];
+    const isAdmin = currentGroupRole === 'admin';
 
-    membersList.innerHTML = members.map((member: any) => `
-      <div class="member-item">
-        <div class="member-info">
-          <span class="name">${member.displayname || member.user_id}</span>
-          <span class="username">@${member.user_id}</span>
+    let html = members.map((member: any) => {
+      const canKick = isAdmin && member.role !== 'admin';
+      return `
+        <div class="member-item">
+          <div class="member-info">
+            <span class="name">${member.displayname || member.user_id}</span>
+            <span class="username">@${member.user_id}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge ${member.role === 'admin' ? 'admin' : 'member'}">${member.status === 'active' ? (member.role === 'admin' ? 'Admin' : 'Miembro') : 'Pendiente'}</span>
+            ${canKick ? `<button class="delete-btn-sm" onclick="window.kickMember('${groupId}', '${member.user_id}')">−</button>` : ''}
+          </div>
         </div>
-        <span class="badge ${member.role === 'admin' ? 'admin' : 'member'}">${member.status === 'active' ? (member.role === 'admin' ? 'Admin' : 'Miembro') : 'Pendiente'}</span>
-      </div>
-    `).join('');
+      `;
+    }).join('');
+
+    if (!isAdmin) {
+      html += `
+        <div style="margin-top:12px;text-align:center;">
+          <button class="delete-btn" onclick="window.leaveGroup('${groupId}')" style="width:100%;">Salir del grupo</button>
+        </div>
+      `;
+    }
+
+    membersList.innerHTML = html;
   } catch (error) {
     console.error('Members load failed:', error);
     membersList.innerHTML = `<p class="error-text">Error de conexión</p>`;
@@ -2558,6 +2583,7 @@ async function loadTrackerFriends() {
             <div class="friend-avatar">${initials}</div>
             <h4 class="friend-name">${friend.displayname || friend.username}</h4>
             <span class="friend-username">@${friend.username}</span>
+            <button class="delete-btn-sm" onclick="window.removeFriend('${friend.username}')" style="margin-top:6px;">−</button>
           </div>
         `;
       }).join('');
@@ -2590,6 +2616,7 @@ async function loadTrackerFriends() {
               <span class="name">${req.displayname || req.username}</span>
               <span class="username">@${req.username} (Enviada)</span>
             </div>
+            <button class="delete-btn" onclick="window.respondFriendRequest('${req.username}', 'rejected')">Cancelar</button>
           </div>
         `;
       });
@@ -2721,19 +2748,50 @@ if (addFriendTriggerBtn) {
 
 const inviteMemberBtn = document.getElementById('invite-member-btn');
 if (inviteMemberBtn) {
-  inviteMemberBtn.addEventListener('click', () => {
-    openTrackerModal(
-      'Invitar Miembro',
-      `
+  inviteMemberBtn.addEventListener('click', async () => {
+    if (!currentGroupId) return;
+
+    try {
+      const [friendsRes, membersRes] = await Promise.all([
+        apiFetch('/tracker/friends'),
+        apiFetch(`/tracker/groups/${currentGroupId}/members`)
+      ]);
+
+      if (!friendsRes.ok || !membersRes.ok) {
+        showErrorMessage('Error al cargar datos');
+        return;
+      }
+
+      const friendsData = await friendsRes.json();
+      const membersData = await membersRes.json();
+      const friends = friendsData.data?.friends || [];
+      const members = membersData.data || [];
+      const memberUsernames = new Set(members.map((m: any) => m.user_id));
+      const available = friends.filter((f: any) => !memberUsernames.has(f.username));
+
+      const noFriends = available.length === 0;
+      const fieldsHtml = noFriends ? `
         <div class="form-group">
-          <label for="invite-username-input">Usuario (@)</label>
-          <input id="invite-username-input" name="username" required>
+          <label for="invite-username-input">Amigos disponibles</label>
+          <select id="invite-username-input" name="username" required disabled style="opacity:0.5;">
+            <option value="">Ninguno Disponible</option>
+          </select>
         </div>
-      `,
-      async (e) => {
+      ` : `
+        <div class="form-group">
+          <label for="invite-username-input">Seleccionar amigo</label>
+          <select id="invite-username-input" name="username" required>
+            <option value="">— Seleccionar —</option>
+            ${available.map((f: any) => `<option value="${f.username}">${f.displayname} (@${f.username})</option>`).join('')}
+          </select>
+        </div>
+      `;
+
+      openTrackerModal('Invitar Miembro', fieldsHtml, async (e) => {
         if (!currentGroupId) return;
         const formData = new FormData(e.target as HTMLFormElement);
-        const username = formData.get('username');
+        const username = formData.get('username') as string;
+        if (!username) return;
 
         try {
           const response = await apiFetch(`/tracker/groups/${currentGroupId}/invite`, {
@@ -2753,8 +2811,11 @@ if (inviteMemberBtn) {
           console.error('Member invite failed:', error);
           showErrorMessage('Error de conexión al invitar miembro');
         }
-      }
-    );
+      });
+    } catch (error) {
+      console.error('Failed to load friends/members:', error);
+      showErrorMessage('Error al cargar datos');
+    }
   });
 }
 

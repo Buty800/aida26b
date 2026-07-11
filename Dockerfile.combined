@@ -38,4 +38,4 @@ COPY shared/src /app/shared/src
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
 EXPOSE 3000
-CMD ["sh", "-c", "npm run migrate && npm run seed-admin && npm run dev"]
+CMD ["sh", "-c", "npm run migrate && npm run seed-admin && npm run seed-example && npm run dev"]

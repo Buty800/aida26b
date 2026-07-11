@@ -43,7 +43,7 @@ export function registerTrackerRoutes(
 
   // POST /api/auth/register
   app.post('/api/auth/register', async (req, res) => {
-    // Summary: Registers a new standard user in both auth.users and public.users tables inside a transaction.
+    // Summary: Registers a new standard user in auth.users inside a transaction.
   
     const username =
       typeof req.body.username === 'string'
@@ -606,11 +606,19 @@ export function registerTrackerRoutes(
         } else {
           friends.push({ username: row.friend1, displayname: row.displayname1 });
         }
-      } else if (row.request === 'pending') {
+      } else if (row.request === 'pending_from_lower') {
+        // friend1 sent the request
         if (row.friend1 === currentUser.username) {
           pendingSent.push({ username: row.friend2, displayname: row.displayname2 });
         } else {
           pendingReceived.push({ username: row.friend1, displayname: row.displayname1 });
+        }
+      } else if (row.request === 'pending_from_higher') {
+        // friend2 sent the request
+        if (row.friend2 === currentUser.username) {
+          pendingSent.push({ username: row.friend1, displayname: row.displayname1 });
+        } else {
+          pendingReceived.push({ username: row.friend2, displayname: row.displayname2 });
         }
       }
     }
@@ -641,6 +649,7 @@ export function registerTrackerRoutes(
     const [friend1, friend2] = currentUser.username < username
       ? [currentUser.username, username]
       : [username, currentUser.username];
+    const requestStatus = currentUser.username < username ? 'pending_from_lower' : 'pending_from_higher';
 
     const relCheck = await adminPool.query(
       'SELECT request FROM friends WHERE friend1 = $1 AND friend2 = $2',
@@ -651,8 +660,8 @@ export function registerTrackerRoutes(
     }
 
     await adminPool.query(
-      `INSERT INTO friends (friend1, friend2, request) VALUES ($1, $2, 'pending')`,
-      [friend1, friend2]
+      `INSERT INTO friends (friend1, friend2, request) VALUES ($1, $2, $3)`,
+      [friend1, friend2, requestStatus]
     );
 
     return res.json({
@@ -684,8 +693,16 @@ export function registerTrackerRoutes(
     if (relCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Friend request not found' });
     }
-    if (relCheck.rows[0].request !== 'pending') {
+    if (relCheck.rows[0].request !== 'pending_from_lower' && relCheck.rows[0].request !== 'pending_from_higher') {
       return res.status(400).json({ error: 'Friend request is not pending' });
+    }
+
+    // Only the recipient (non-sender) can accept/reject
+    const isSender = relCheck.rows[0].request === 'pending_from_lower'
+      ? currentUser.username === friend1
+      : currentUser.username === friend2;
+    if (isSender) {
+      return res.status(403).json({ error: 'Cannot respond to your own friend request' });
     }
 
     if (action === 'accepted') {

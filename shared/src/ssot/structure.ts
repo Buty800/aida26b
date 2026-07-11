@@ -116,7 +116,8 @@ export const structure = {
             required: true,
           },
           options: [
-            { value: 'pending', label: { es: 'Pendiente', en: 'Pending' } },
+            { value: 'pending_from_lower', label: { es: 'Pendiente (iniciador menor)', en: 'Pending (lower sender)' } },
+            { value: 'pending_from_higher', label: { es: 'Pendiente (iniciador mayor)', en: 'Pending (higher sender)' } },
             { value: 'accepted', label: { es: 'Aceptado', en: 'Accepted' } },
             { value: 'rejected', label: { es: 'Rechazado', en: 'Rejected' } },
           ],

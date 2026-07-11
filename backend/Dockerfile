@@ -18,4 +18,4 @@ COPY database/migrations /app/database/migrations
 EXPOSE 3000
 
 # Run migrations and ensure the first admin exists before starting the API
-CMD ["sh", "-c", "npm run migrate && npm run seed-admin && npm run dev"]
+CMD ["sh", "-c", "npm run migrate && npm run seed-admin && npm run seed-example && npm run dev"]

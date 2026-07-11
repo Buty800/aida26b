@@ -53,7 +53,7 @@ services:
       - ./shared/src:/app/shared/src
       - ./database/migrations:/app/database/migrations
       - ./tsconfig.base.json:/app/tsconfig.base.json
-    command: sh -c "npm run migrate && npm run seed-admin && npm run dev"
+    command: sh -c "npm run migrate && npm run seed-admin && npm run seed-example && npm run dev"
 
   # Frontend Service
   frontend:

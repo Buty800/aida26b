@@ -59,7 +59,7 @@ services:
       - ./frontend/package.json:/app/frontend/package.json
       - ./frontend/tsconfig.json:/app/frontend/tsconfig.json
       - ./frontend/index.html:/app/frontend/index.html
-    command: sh -c "npm run migrate && npm run seed-admin && npm run dev"
+    command: sh -c "npm run migrate && npm run seed-admin && npm run seed-example && npm run dev"
 
 volumes:
   postgres_data:

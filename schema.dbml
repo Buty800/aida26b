@@ -19,13 +19,6 @@ Table friends {
   }
 }
 
-Table users {
-  username varchar [primary key]
-  displayname varchar
-  password varchar
-  created_at timestamp
-}
-
 Table groups {
   id uuid [pk]
   displayname varchar
@@ -56,12 +49,12 @@ Ref: "groups"."id" < "user_group"."group_id"
 
 Ref: "track"."group" < "groups"."id"
 
-Ref: "friends"."friend1" < "users"."username"
+Ref: "friends"."friend1" < "auth"."users"."username"
 
-Ref: "friends"."friend2" < "users"."username"
+Ref: "friends"."friend2" < "auth"."users"."username"
 
-Ref: "users"."username" < "user_group"."user_id"
+Ref: "auth"."users"."username" < "user_group"."user_id"
 
 Ref: "log"."track" < "track"."id"
 
-Ref: "log"."user_id" < "users"."username"
+Ref: "log"."user_id" < "auth"."users"."username"
