@@ -43,11 +43,7 @@ function isLanguage(value: string | null): value is Language {
 
 let currentLanguage: Language = isLanguage(storedLanguage) ? storedLanguage : 'es';
 
-export function getLanguage(): Language {
-  return currentLanguage;
-}
-
-export function setLanguage(language: Language): void {
+function setLanguage(language: Language): void {
   currentLanguage = language;
   localStorage.setItem('language', language);
 }
@@ -1506,10 +1502,6 @@ function collectFormData<K extends TableKey>(
   return payload;
 }
 
-export function getRecordPath(recordValues: string[]): string {
-  return `/${recordValues.map((value) => encodeURIComponent(value)).join('/')}`;
-}
-
 export function hideAnyForm(): void {
   formContainer.style.display = 'none';
   formContainer.innerHTML = '';
@@ -2150,19 +2142,15 @@ cacheDashboardElements();
 
 
 async function loadDashboardStats() {
-  console.log("Dashboard loading information")
   try {
-    console.log("Dashboard fetching stats ")
     const response = await fetch(`${API_BASE}/tracker/stats`, {
       credentials: 'same-origin',
     });
-    console.log("Dashboard get response", response)
     if (!response.ok) {
       throw new Error('Failed to load dashboard stats');
     }
   
     const result = await response.json();
-    console.log("Results: ", result)
     statGroupsCount.textContent = result.data.groups.toString();
     statFriendsCount.textContent = result.data.friends.toString();
     statLogsCount.textContent = result.data.logs.toString();
@@ -2249,19 +2237,16 @@ async function loadTrackerDashboard() {
 }
 
 async function loadTrackerGroups() {
-  console.log("Llamando load tracker group");
   const groupsList = document.getElementById('groups-list');
   const invitationsList = document.getElementById('invitations-list');
   const groupDetailsView = document.getElementById('group-details-view');
 
-  console.log(groupsList, invitationsList,  groupDetailsView)
   if (!groupsList || !invitationsList) return;
 
   groupsList.style.display = 'grid';
   if (groupDetailsView) groupDetailsView.style.display = 'none';
 
   try {
-    console.log("Llamando api")
     const [groupsResponse, invitationsResponse] = await Promise.all([
       apiFetch('/tracker/groups'),
       apiFetch('/tracker/invitations')
@@ -2473,7 +2458,6 @@ async function showTrackerGroupById(groupId: string) {
 }
 
 async function loadGroupActivities(groupId: string) {
-  console.log("")
   const activitiesList = document.getElementById('group-activities-list');
   if (!activitiesList) return;
 
@@ -2484,7 +2468,6 @@ async function loadGroupActivities(groupId: string) {
       return;
     }
     const resAnswer = await response.json();
-    console.log(resAnswer)
     const activities = resAnswer.data || [];
 
     if (activities.length === 0) {
@@ -2841,13 +2824,10 @@ if (addActivityBtn) {
         const body = formData.get('body') || null;
 
         try {
-          console.log("Creating new activity")
-          const response = await apiFetch(`/tracker/groups/${currentGroupId}/activities`, {
+                  const response = await apiFetch(`/tracker/groups/${currentGroupId}/activities`, {
             method: 'POST',
             body: JSON.stringify({ title, body, status: 'active' })
           });
-
-          console.log("Response after creativing activity", response)
           if (!response.ok) {
             const err = await response.json();
             showErrorMessage(err.error || 'Error al crear actividad');

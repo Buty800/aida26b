@@ -146,13 +146,6 @@ tr:hover {
     background-color: var(--surface-2);
 }
 
-td.password {
-    max-width: 150px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 button {
     padding: 8px 14px;
 
@@ -1303,19 +1296,6 @@ textarea:focus {
     border-radius: 2px;
 }
 
-/* Calendar heatmap */
-.stats-heatmap-section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-}
-
-.stats-heatmap-section h4 {
-    margin: 0 0 12px 0;
-    font-size: 0.95rem;
-}
-
 .heatmap-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -1334,14 +1314,6 @@ textarea:focus {
     color: var(--text-muted);
     text-align: center;
     padding: 2px 0;
-}
-
-.heatmap-month-label {
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    grid-column: 1 / -1;
-    margin-top: 8px;
 }
 
 .heatmap-legend {
@@ -1411,26 +1383,6 @@ textarea:focus {
 
 .records-table tr:hover td {
     background: var(--surface-2);
-}
-
-/* Section titles in stats */
-.stats-section-title {
-    font-size: 1rem;
-    font-weight: 700;
-    margin: 0 0 12px 0;
-}
-
-.stats-section {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
-}
-
-.section-title {
-    font-size: 1rem;
-    font-weight: 700;
-    margin: 0 0 16px 0;
 }
 
 .stats-charts-row {

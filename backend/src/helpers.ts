@@ -3,6 +3,10 @@ import      { structure } from '../../shared/src/ssot/structure';
 import type { Pool }      from 'pg';
 
 
+function isKnownTable(tableName: string): tableName is TableKey {
+  return Object.prototype.hasOwnProperty.call(structure.tables, tableName);
+}
+
 function getEntityName(table: TableKey): string {
   return String(structure.tables[table].uiName.en);
 }
@@ -45,10 +49,6 @@ function getReferencedRelations(tableName: TableKey): TableKey[]{
   return (Array.isArray(refs) ? refs : []) as TableKey[];
 }
 
-function getRequiredFields(tableName: TableKey){
-  return getAllFields(tableName).filter(([fieldName, column]) => column.required);
-}
-
 function formatTableColumnsForQuery(fieldsNames: string[], from: number = 1): string[]{
   let tupleWithReplaceParameters = '';
   for (let columnsCount = from; columnsCount <= fieldsNames.length; columnsCount++){
@@ -59,4 +59,4 @@ function formatTableColumnsForQuery(fieldsNames: string[], from: number = 1): st
   return [tupleContent, tupleWithReplaceParameters];
 }
 
-export { getEntityName, tryQuery, columnNamesEqualsNumber, getNotDerivableFields, getRequiredFields, formatTableColumnsForQuery, getReferencedRelations, getDerivableFields };
+export { isKnownTable, getEntityName, tryQuery, columnNamesEqualsNumber, getNotDerivableFields, formatTableColumnsForQuery, getReferencedRelations, getDerivableFields };

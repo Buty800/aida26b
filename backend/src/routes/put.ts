@@ -10,6 +10,7 @@ import {
   getNotDerivableFields,
   tryQuery,
   columnNamesEqualsNumber,
+  isKnownTable,
 } from '../helpers';
 
 import {
@@ -110,8 +111,4 @@ export async function putHandler(
     'updated',
     202
   );
-}
-
-function isKnownTable(tableName: string): tableName is TableKey {
-  return Object.prototype.hasOwnProperty.call(structure.tables, tableName);
 }

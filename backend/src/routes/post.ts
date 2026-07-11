@@ -8,6 +8,7 @@ import {
   getNotDerivableFields,
   tryQuery,
   formatTableColumnsForQuery,
+  isKnownTable,
 } from '../helpers';
 
 import {
@@ -69,8 +70,4 @@ export async function postHandler(
     'created',
     201
   );
-}
-
-function isKnownTable(tableName: string): tableName is TableKey {
-  return Object.prototype.hasOwnProperty.call(structure.tables, tableName);
 }

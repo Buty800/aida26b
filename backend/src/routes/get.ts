@@ -3,6 +3,7 @@ import express from "express";
 import { Pool } from "pg";
 
 import {
+  isKnownTable,
   getEntityName,
   getDerivableFields,
   getReferencedRelations,
@@ -242,10 +243,6 @@ export function buildListQuery(
 }
 
 /** Helpers */
-function isKnownTable(tableName: string): tableName is TableKey {
-  return Object.prototype.hasOwnProperty.call(structure.tables, tableName);
-}
-
 function isListRequest(query: express.Request["query"]): boolean {
   const queryKeys = Object.keys(query);
 

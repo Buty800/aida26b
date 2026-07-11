@@ -15,6 +15,7 @@ import {
   getEntityName,
   tryQuery,
   columnNamesEqualsNumber,
+  isKnownTable,
 } from '../helpers';
 
 import {
@@ -77,8 +78,4 @@ export async function deleteHandler(
     'deleted',
     200
   );
-}
-
-function isKnownTable(tableName: string): tableName is TableKey {
-  return Object.prototype.hasOwnProperty.call(structure.tables, tableName);
 }

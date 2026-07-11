@@ -9,11 +9,8 @@ function sendSuccessOperationMessage(res: express.Response, entityName: string, 
   return res.status(successCode).json({success: true, data: data, message: `${entityName} ${operationDone} successfully`});
 }
 
-function sendInvalidInstanceMessage(res: express.Response, message: string){
-  res.status(400).json({success: false, data: undefined, message: message});
-}
 function sendNotFoundMessage(res: express.Response, message: string){
   res.status(404).json({success: false, data: undefined, message: message});
 }
 
-export{ sendErrorMessage, sendInvalidInstanceMessage, sendNotFoundMessage, sendSuccessOperationMessage }
+export{ sendErrorMessage, sendNotFoundMessage, sendSuccessOperationMessage }
