@@ -545,6 +545,61 @@ function createTableNavButtons(): void {
     navContainer.appendChild(button);
     tableNavButtons[key] = button;
   }
+
+  // Impersonation section in sidebar
+  const existingSection = document.getElementById('impersonate-section');
+  if (existingSection) existingSection.remove();
+
+  const section = document.createElement('div');
+  section.id = 'impersonate-section';
+  section.style.cssText = 'margin-top: 20px; border-top: 1px solid var(--border); padding-top: 12px;';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; color: var(--text-muted);';
+  title.textContent = 'Actuar como usuario';
+  section.appendChild(title);
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display: flex; gap: 6px;';
+
+  const input = document.createElement('input');
+  input.id = 'impersonate-username-input';
+  input.type = 'text';
+  input.placeholder = '@usuario';
+  input.style.cssText = 'flex: 1; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem;';
+
+  const btn = document.createElement('button');
+  btn.id = 'impersonate-btn';
+  btn.textContent = 'Actuar';
+  btn.className = 'action-btn-sm';
+
+  row.appendChild(input);
+  row.appendChild(btn);
+  section.appendChild(row);
+  navContainer.appendChild(section);
+
+  btn.addEventListener('click', async () => {
+    const username = (document.getElementById('impersonate-username-input') as HTMLInputElement)?.value.trim();
+    if (!username) return;
+    try {
+      const response = await apiFetch('/admin/impersonate', {
+        method: 'POST',
+        body: JSON.stringify({ username }),
+      });
+      if (response.ok) {
+        const result = await response.json();
+        currentUser = result.user;
+        window.history.pushState({}, '', '/');
+        renderRoute();
+      } else {
+        const err = await response.json();
+        alert(err.error || 'Error al impersonar usuario');
+      }
+    } catch (error) {
+      console.error('Error impersonating user:', error);
+      alert('Error de conexión');
+    }
+  });
 }
 
 function resetStateForTable(tableKey: TableKey): void {
@@ -2052,6 +2107,18 @@ function renderRoute(): void {
       goToAdminBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
     }
 
+    // Impersonation banner
+    const impersonationBanner = document.getElementById('impersonation-banner');
+    const impersonationTarget = document.getElementById('impersonation-target');
+    if (impersonationBanner && impersonationTarget) {
+      if ((currentUser as any).impersonating_username) {
+        impersonationBanner.style.display = 'flex';
+        impersonationTarget.textContent = `@${(currentUser as any).impersonating_username}`;
+      } else {
+        impersonationBanner.style.display = 'none';
+      }
+    }
+
     // Parse tracker path for tab and group detail
     const groupMatch = path.match(/^\/groups\/(.+)$/);
     if (groupMatch) {
@@ -2076,6 +2143,24 @@ if (goToTrackerBtn) {
 
 if (goToAdminBtn) {
   goToAdminBtn.addEventListener('click', () => {
+    window.history.pushState({}, '', '/panel');
+    renderRoute();
+  });
+}
+
+// Back to admin from impersonation
+const backToAdminBtn = document.getElementById('back-to-admin-btn');
+if (backToAdminBtn) {
+  backToAdminBtn.addEventListener('click', async () => {
+    try {
+      const response = await apiFetch('/admin/unimpersonate', { method: 'POST' });
+      if (response.ok) {
+        const result = await response.json();
+        currentUser = result.user;
+      }
+    } catch (error) {
+      console.error('Error returning to admin:', error);
+    }
     window.history.pushState({}, '', '/panel');
     renderRoute();
   });

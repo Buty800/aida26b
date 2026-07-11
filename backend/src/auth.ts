@@ -12,6 +12,7 @@ export type AuthUser = {
   role: Role;
   is_active: boolean;
   must_change_password: boolean;
+  impersonating_username?: string;
 };
 
 export const SESSION_COOKIE = 'aida_session';
@@ -77,7 +78,7 @@ export function clearSessionCookie(secure: boolean) {
 }
 
 export function publicUser(row: Record<string, unknown>): AuthUser {
-  return {
+  const user: AuthUser = {
     username: String(row.username),
     displayname: String(row.displayname),
     email: row.email === null || row.email === undefined ? null : String(row.email),
@@ -85,4 +86,8 @@ export function publicUser(row: Record<string, unknown>): AuthUser {
     is_active: Boolean(row.is_active),
     must_change_password: Boolean(row.must_change_password),
   };
+  if (row.impersonating_username) {
+    user.impersonating_username = String(row.impersonating_username);
+  }
+  return user;
 }

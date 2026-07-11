@@ -108,7 +108,8 @@ async function loadSession(req: Request) {
        u.email,
        u.role,
        u.is_active,
-       u.must_change_password
+       u.must_change_password,
+       s.impersonating_username
      FROM auth.sessions s
      JOIN auth.users u ON u.username = s.user_id
      WHERE s.token_hash = $1
@@ -117,7 +118,22 @@ async function loadSession(req: Request) {
     [auth.hashToken(token)]
   );
 
-  return result.rows[0] ? auth.publicUser(result.rows[0]) : null;
+  if (result.rows.length === 0) return null;
+
+  const row = result.rows[0];
+
+  // If impersonating, fetch and return the impersonated user's data instead
+  if (row.impersonating_username) {
+    const impersonated = await authPool.query(
+      `SELECT username, displayname, email, role, is_active, must_change_password
+       FROM auth.users WHERE username = $1 AND is_active = true`,
+      [row.impersonating_username]
+    );
+    if (impersonated.rows.length === 0) return null;
+    return auth.publicUser({ ...impersonated.rows[0], impersonating_username: row.impersonating_username });
+  }
+
+  return auth.publicUser(row);
 }
 
 const requireAuth: RequestHandler = async (req, res, next) => {
@@ -418,6 +434,64 @@ app.post(
     }
   }
 );
+
+// POST /api/admin/impersonate — admin temporarily acts as another user
+app.post('/api/admin/impersonate', requireAuth, requirePasswordReady, requireAdmin, async (req, res) => {
+  try {
+    const username = typeof req.body.username === 'string' ? req.body.username.trim() : '';
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    const userResult = await authPool.query(
+      `SELECT username, displayname, email, role, is_active, must_change_password
+       FROM auth.users WHERE username = $1 AND is_active = true`,
+      [username]
+    );
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const token = getSessionToken(req);
+    await authPool.query(
+      'UPDATE auth.sessions SET impersonating_username = $1 WHERE token_hash = $2',
+      [username, auth.hashToken(token)]
+    );
+
+    return res.json({ user: auth.publicUser({ ...userResult.rows[0], impersonating_username: username }) });
+  } catch (error) {
+    console.error('Error impersonating user:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// POST /api/admin/unimpersonate — switch back to admin
+app.post('/api/admin/unimpersonate', requireAuth, async (req, res) => {
+  try {
+    const token = getSessionToken(req);
+    const result = await authPool.query(
+      `UPDATE auth.sessions SET impersonating_username = NULL
+       WHERE token_hash = $1 AND impersonating_username IS NOT NULL
+       RETURNING user_id`,
+      [auth.hashToken(token)]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: 'Not impersonating any user' });
+    }
+
+    const adminResult = await authPool.query(
+      `SELECT username, displayname, email, role, is_active, must_change_password
+       FROM auth.users WHERE username = $1`,
+      [result.rows[0].user_id]
+    );
+
+    return res.json({ user: auth.publicUser(adminResult.rows[0]) });
+  } catch (error) {
+    console.error('Error unimpersonating:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 // Register Tracker endpoints (uses adminPool — no access to password hashes)
 registerTrackerRoutes(app, adminPool, authPool, requireAuth, requirePasswordReady);
