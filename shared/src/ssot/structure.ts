@@ -132,7 +132,7 @@ export const structure = {
     groups: {
       columns: {
         id: {
-          type: 'string',
+          type: 'number',
           label: { es: 'ID Grupo', en: 'Group ID' },
           editable: false,
           readonlyOnEdit: true,
@@ -168,7 +168,7 @@ export const structure = {
     user_group: {
       columns: {
         id_relation: {
-          type: 'string',
+          type: 'number',
           label: { es: 'ID de Relación', en: 'Relation ID' },
           editable: false,
           readonlyOnEdit: true,
@@ -187,7 +187,7 @@ export const structure = {
           },
         },
         group_id: {
-          type: 'string',
+          type: 'number',
           label: { es: 'Grupo', en: 'Group' },
           input: 'select',
           validator: {
@@ -234,12 +234,6 @@ export const structure = {
 
     track: {
       columns: {
-        id: {
-          type: 'number',
-          label: { es: 'ID de Actividad', en: 'Activity ID' },
-          editable: false,
-          readonlyOnEdit: true,
-        },
         title: {
           type: 'string',
           label: { es: 'Título', en: 'Title' },
@@ -256,7 +250,7 @@ export const structure = {
           },
         },
         group: {
-          type: 'string',
+          type: 'number',
           label: { es: 'Grupo', en: 'Group' },
           input: 'select',
           validator: {
@@ -282,7 +276,7 @@ export const structure = {
           editable: false,
         },
       },
-      pk: 'id',
+      pk: ['group', 'title'],
       uiName: { es: 'Actividad', en: 'Activity' },
       title: { es: 'Actividades', en: 'Activities' },
       addButtonLabel: { es: 'Agregar Actividad', en: 'Add Activity' },
@@ -291,7 +285,7 @@ export const structure = {
     log: {
       columns: {
         id: {
-          type: 'string',
+          type: 'number',
           label: { es: 'ID de Registro', en: 'Log ID' },
           editable: false,
           readonlyOnEdit: true,
@@ -309,8 +303,21 @@ export const structure = {
             labelField: 'displayname',
           },
         },
-        track: {
+        track_group: {
           type: 'number',
+          label: { es: 'Grupo de Actividad', en: 'Activity Group' },
+          input: 'select',
+          validator: {
+            required: true,
+          },
+          foreignKey: {
+            table: 'groups',
+            valueField: 'id',
+            labelField: 'displayname',
+          },
+        },
+        track_title: {
+          type: 'string',
           label: { es: 'Actividad', en: 'Activity' },
           input: 'select',
           validator: {
@@ -318,7 +325,7 @@ export const structure = {
           },
           foreignKey: {
             table: 'track',
-            valueField: 'id',
+            valueField: 'title',
             labelField: 'title',
           },
         },

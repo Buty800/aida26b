@@ -1,12 +1,12 @@
 Table user_group {
-  id_relation uuid [pk]
+  id_relation integer [pk, increment]
   user_id varchar
   group_id integer 
   created_at timestamp
   role varchar 
   status status
   indexes {
-    (user_id, group_id) 
+    (user_id, group_id) [unique]
   }
 }
 
@@ -20,25 +20,28 @@ Table friends {
 }
 
 Table groups {
-  id uuid [pk]
+  id integer [pk, increment]
   displayname varchar
   description texto
   created_at timestamp
 }
 
 Table track {
-  id integer [primary key, increment]
   title varchar
   body text [note: 'Content of the post']
-  group group [not null]
+  group integer [not null]
   status varchar
   created_at timestamp
+  indexes {
+    (group, title) [pk]
+  }
 }
 
 Table log {
-  id uuid 
+  id integer [pk, increment]
   user_id varchar
-  track track  
+  track_group integer
+  track_title varchar
   value integer [NOT NULL]
   fecha timestamp  
   commentar varchar
@@ -55,6 +58,7 @@ Ref: "friends"."friend2" < "auth"."users"."username"
 
 Ref: "auth"."users"."username" < "user_group"."user_id"
 
-Ref: "log"."track" < "track"."id"
+Ref: "track"."group" < "log"."track_group"
+Ref: "track"."title" < "log"."track_title"
 
 Ref: "log"."user_id" < "auth"."users"."username"

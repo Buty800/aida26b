@@ -2485,9 +2485,9 @@ async function loadGroupActivities(groupId: string) {
           <p>${act.body || 'Sin descripción'}</p>
         </div>
         <div class="activity-actions">
-          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${escapedTitle}')">Registrar</button>
-          <button class="nav-toggle-btn" onclick="window.openActivityStats('${act.id}', '${escapedTitle}')">Progreso</button>
-          ${isAdmin ? `<button class="delete-btn-sm" onclick="window.deleteActivity('${currentGroupId}', '${act.id}')" style="margin-bottom:0;">−</button>` : ''}
+          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${currentGroupId}', '${escapedTitle}')">Registrar</button>
+          <button class="nav-toggle-btn" onclick="window.openActivityStats('${currentGroupId}', '${escapedTitle}')">Progreso</button>
+          ${isAdmin ? `<button class="delete-btn-sm" onclick="window.deleteActivity('${currentGroupId}', '${escapedTitle}')" style="margin-bottom:0;">−</button>` : ''}
         </div>
       </div>
     `}).join('');
@@ -2865,7 +2865,7 @@ document.getElementById('delete-group-btn')?.addEventListener('click', () => {
 });
 
 // Window globally exposed inline callbacks
-(window as any).openLogActivityModal = (activityId: string, activityTitle: string) => {
+(window as any).openLogActivityModal = (groupId: string, activityTitle: string) => {
   openTrackerModal(
     `Registrar Progreso: ${activityTitle}`,
     `
@@ -2875,21 +2875,22 @@ document.getElementById('delete-group-btn')?.addEventListener('click', () => {
       </div>
       <div class="form-group">
         <label for="log-fecha">Fecha</label>
-        <input type="date" id="log-fecha" name="fecha" value="${new Date().toISOString().slice(0,10)}" required>
+        <input type="date" id="log-fecha" name="fecha" required>
       </div>
       <div class="form-group">
-        <label for="log-comment">Comentario</label>
-        <textarea id="log-comment" name="commentar"></textarea>
+        <label for="log-commentar">Comentario</label>
+        <textarea id="log-commentar" name="commentar"></textarea>
       </div>
     `,
     async (e) => {
+      if (!currentGroupId) return;
       const formData = new FormData(e.target as HTMLFormElement);
-      const value = Number(formData.get('value'));
-      const fecha = new Date(formData.get('fecha') as string).toISOString();
+      const value = formData.get('value');
+      const fecha = formData.get('fecha');
       const commentar = formData.get('commentar') || null;
 
       try {
-        const response = await apiFetch(`/tracker/activities/${activityId}/records`, {
+        const response = await apiFetch(`/tracker/groups/${currentGroupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
           method: 'POST',
           body: JSON.stringify({ value, fecha, commentar })
         });
@@ -2912,7 +2913,7 @@ document.getElementById('delete-group-btn')?.addEventListener('click', () => {
 
 const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
 
-let currentStatsActivityId: string | null = null;
+let currentStatsActivityTitle: string | null = null;
 let currentStatsData: any = null;
 let currentStatsUseSum = true;
 
@@ -3031,7 +3032,7 @@ function renderStats(useSum: boolean) {
               <td>${r.value}</td>
               <td>${new Date(r.fecha).toLocaleDateString()}</td>
               <td>${r.commentar || ''}</td>
-              <td>${canDelete ? `<button class="delete-btn-sm" onclick="window.deleteLogRecord('${currentStatsActivityId}', '${r.id}')">−</button>` : ''}</td>
+              <td>${canDelete ? `<button class="delete-btn-sm" onclick="window.deleteLogRecord('${currentGroupId}', '${currentStatsActivityTitle}', '${r.id}')">−</button>` : ''}</td>
             </tr>
           `}).join('')}
         </tbody>
@@ -3319,7 +3320,7 @@ function buildHeatmap(daily: any[]): string {
   </div>`;
 }
 
-(window as any).openActivityStats = async (activityId: string, activityTitle: string) => {
+(window as any).openActivityStats = async (groupId: string, activityTitle: string) => {
   const columns = document.getElementById('group-columns');
   const container = document.getElementById('group-stats-container');
   const titleEl = document.getElementById('stats-activity-title');
@@ -3328,14 +3329,14 @@ function buildHeatmap(daily: any[]): string {
   columns.style.display = 'none';
   container.style.display = 'block';
   titleEl.textContent = activityTitle;
-  currentStatsActivityId = activityId;
+  currentStatsActivityTitle = activityTitle;
 
   const contentEl = document.getElementById('stats-content');
   if (!contentEl) return;
   contentEl.innerHTML = '<p class="empty-text">Cargando estadísticas...</p>';
 
   try {
-    const response = await apiFetch(`/tracker/activities/${activityId}/stats`);
+    const response = await apiFetch(`/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/stats`);
     if (!response.ok) {
       contentEl.innerHTML = '<p class="error-text">Error al cargar estadísticas</p>';
       return;
@@ -3424,20 +3425,20 @@ async function apiDelete(path: string, options: {
   });
 };
 
-(window as any).deleteActivity = (groupId: string, activityId: string) =>
-  apiDelete(`/tracker/groups/${groupId}/activities/${activityId}`, {
+(window as any).deleteActivity = (groupId: string, activityTitle: string) =>
+  apiDelete(`/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}`, {
     confirmMsg: '¿Eliminar esta actividad? También se eliminarán todos los registros asociados.',
     successMsg: 'Actividad eliminada',
     refresh: () => loadGroupActivities(groupId),
   });
 
-(window as any).deleteLogRecord = (activityId: string, recordId: string) =>
-  apiDelete(`/tracker/activities/${activityId}/records/${recordId}`, {
+(window as any).deleteLogRecord = (groupId: string, activityTitle: string, recordId: string) =>
+  apiDelete(`/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records/${recordId}`, {
     confirmMsg: '¿Eliminar este registro?',
     successMsg: 'Registro eliminado',
     refresh: () => {
       const title = (document.getElementById('stats-activity-title') as HTMLElement)?.textContent;
-      if (currentStatsActivityId && title) (window as any).openActivityStats(currentStatsActivityId, title);
+      if (currentGroupId && title) (window as any).openActivityStats(currentGroupId, title);
     },
   });
 

@@ -391,7 +391,7 @@ export function registerTrackerRoutes(
     }
 
     const result = await adminPool.query(
-      `SELECT id, title, body, "group", status, created_at 
+      `SELECT title, body, "group", status, created_at 
        FROM track WHERE "group" = $1 ORDER BY created_at DESC`,
       [groupId]
     );
@@ -428,17 +428,11 @@ export function registerTrackerRoutes(
     });
   }));
 
-  // GET /api/tracker/activities/:activityId/records
-  app.get('/api/tracker/activities/:activityId/records', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
-    const { activityId } = req.params;
+  // GET /api/tracker/groups/:groupId/activities/:activityTitle/records
+  app.get('/api/tracker/groups/:groupId/activities/:activityTitle/records', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const { groupId, activityTitle } = req.params;
     const currentUser = (req as any).user;
 
-    const trackCheck = await adminPool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
-    if (trackCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Activity not found' });
-    }
-
-    const groupId = trackCheck.rows[0].group;
     if (!await isGroupMember(currentUser.username, groupId)) {
       return res.status(403).json({ error: "Must be an active member of the activity's group to view records" });
     }
@@ -446,8 +440,8 @@ export function registerTrackerRoutes(
     const result = await adminPool.query(
       `SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar
         FROM log l JOIN auth.users u ON l.user_id = u.username
-       WHERE l.track = $1 ORDER BY l.fecha DESC, l.id DESC`,
-      [activityId]
+       WHERE l.track_group = $1 AND l.track_title = $2 ORDER BY l.fecha DESC, l.id DESC`,
+      [groupId, activityTitle]
     );
 
     return res.json({
@@ -456,32 +450,27 @@ export function registerTrackerRoutes(
     });
   }));
 
-  // POST /api/tracker/activities/:activityId/records
-  app.post('/api/tracker/activities/:activityId/records', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
-    const { activityId } = req.params;
+  // POST /api/tracker/groups/:groupId/activities/:activityTitle/records
+  app.post('/api/tracker/groups/:groupId/activities/:activityTitle/records', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const { groupId, activityTitle } = req.params;
     const currentUser = (req as any).user;
 
-    const trackCheck = await adminPool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
-    if (trackCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Activity not found' });
-    }
-
-    const groupId = trackCheck.rows[0].group;
     if (!await isGroupMember(currentUser.username, groupId)) {
       return res.status(403).json({ error: "Must be an active member of the activity's group to log entries" });
     }
 
     req.body.user_id = currentUser.username;
-    req.body.track = Number(activityId);
+    req.body.track_group = groupId;
+    req.body.track_title = activityTitle;
 
     const validated = validateFullObject('log', req.body);
     if (sendErrorsIfInvalid(res, validated)) return;
 
-    const { user_id, track, value, fecha, commentar } = validated.data;
+    const { user_id, track_group, track_title, value, fecha, commentar } = validated.data;
     const result = await adminPool.query(
-      `INSERT INTO log (user_id, track, value, fecha, commentar)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [user_id, track, value, fecha, commentar]
+      `INSERT INTO log (user_id, track_group, track_title, value, fecha, commentar)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [user_id, track_group, track_title, value, fecha, commentar]
     );
 
     return res.status(201).json({
@@ -490,17 +479,11 @@ export function registerTrackerRoutes(
     });
   }));
 
-  // GET /api/tracker/activities/:activityId/comparisons
-  app.get('/api/tracker/activities/:activityId/comparisons', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
-    const { activityId } = req.params;
+  // GET /api/tracker/groups/:groupId/activities/:activityTitle/comparisons
+  app.get('/api/tracker/groups/:groupId/activities/:activityTitle/comparisons', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const { groupId, activityTitle } = req.params;
     const currentUser = (req as any).user;
 
-    const trackCheck = await adminPool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
-    if (trackCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Activity not found' });
-    }
-
-    const groupId = trackCheck.rows[0].group;
     if (!await isGroupMember(currentUser.username, groupId)) {
       return res.status(403).json({ error: "Must be an active member of the activity's group to view comparisons" });
     }
@@ -509,11 +492,11 @@ export function registerTrackerRoutes(
       `SELECT u.username, u.displayname, COALESCE(SUM(l.value), 0)::INTEGER AS total_value
        FROM user_group ug
        JOIN auth.users u ON ug.user_id = u.username
-       LEFT JOIN log l ON l.user_id = ug.user_id AND l.track = $1
-       WHERE ug.group_id = $2 AND ug.status = 'active'
+       LEFT JOIN log l ON l.user_id = ug.user_id AND l.track_group = $1 AND l.track_title = $2
+       WHERE ug.group_id = $1 AND ug.status = 'active'
        GROUP BY u.username, u.displayname
        ORDER BY total_value DESC, u.username ASC`,
-      [activityId, groupId]
+      [groupId, activityTitle]
     );
 
     return res.json({
@@ -522,17 +505,11 @@ export function registerTrackerRoutes(
     });
   }));
 
-  // GET /api/tracker/activities/:activityId/stats
-  app.get('/api/tracker/activities/:activityId/stats', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
-    const { activityId } = req.params;
+  // GET /api/tracker/groups/:groupId/activities/:activityTitle/stats
+  app.get('/api/tracker/groups/:groupId/activities/:activityTitle/stats', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const { groupId, activityTitle } = req.params;
     const currentUser = (req as any).user;
 
-    const trackCheck = await adminPool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
-    if (trackCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Activity not found' });
-    }
-
-    const groupId = trackCheck.rows[0].group;
     if (!await isGroupMember(currentUser.username, groupId)) {
       return res.status(403).json({ error: "Must be an active member of the activity's group to view stats" });
     }
@@ -542,30 +519,30 @@ export function registerTrackerRoutes(
         `SELECT COUNT(*)::INTEGER AS total_count, COALESCE(SUM(value), 0)::INTEGER AS total_sum,
                 ROUND(COALESCE(AVG(value), 0), 1)::NUMERIC(10,1) AS average,
                 COALESCE(MAX(value), 0)::INTEGER AS max, COALESCE(MIN(value), 0)::INTEGER AS min
-         FROM log WHERE track = $1`, [activityId]
+         FROM log WHERE track_group = $1 AND track_title = $2`, [groupId, activityTitle]
       ),
       adminPool.query(
         `SELECT l.user_id, u.displayname, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
          FROM log l JOIN auth.users u ON l.user_id = u.username
-         WHERE l.track = $1 GROUP BY l.user_id, u.displayname`, [activityId]
+         WHERE l.track_group = $1 AND l.track_title = $2 GROUP BY l.user_id, u.displayname`, [groupId, activityTitle]
       ),
       adminPool.query(
         `SELECT EXTRACT(YEAR FROM l.fecha)::INTEGER AS year, EXTRACT(MONTH FROM l.fecha)::INTEGER AS month,
                 l.user_id, u.displayname, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
          FROM log l JOIN auth.users u ON l.user_id = u.username
-         WHERE l.track = $1
+         WHERE l.track_group = $1 AND l.track_title = $2
          GROUP BY year, month, l.user_id, u.displayname
-         ORDER BY year, month`, [activityId]
+         ORDER BY year, month`, [groupId, activityTitle]
       ),
       adminPool.query(
         `SELECT l.fecha::DATE AS date, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
-         FROM log l WHERE l.track = $1
-         GROUP BY date ORDER BY date`, [activityId]
+         FROM log l WHERE l.track_group = $1 AND l.track_title = $2
+         GROUP BY date ORDER BY date`, [groupId, activityTitle]
       ),
       adminPool.query(
         `SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar
          FROM log l JOIN auth.users u ON l.user_id = u.username
-         WHERE l.track = $1 ORDER BY l.fecha DESC`, [activityId]
+         WHERE l.track_group = $1 AND l.track_title = $2 ORDER BY l.fecha DESC`, [groupId, activityTitle]
       ),
     ]);
 
@@ -731,8 +708,8 @@ export function registerTrackerRoutes(
       `SELECT l.id, t.title AS activity_title, g.displayname AS group_name,
               l.value, l.fecha, l.commentar
        FROM log l
-       JOIN track t ON l.track = t.id
-       JOIN groups g ON t.group = g.id
+       JOIN track t ON l.track_group = t."group" AND l.track_title = t.title
+       JOIN groups g ON t."group" = g.id
        WHERE l.user_id = $1
        ORDER BY l.fecha DESC, l.id DESC
        LIMIT 50`,
@@ -802,9 +779,9 @@ export function registerTrackerRoutes(
     return res.json({ success: true });
   }));
 
-  // DELETE /api/tracker/groups/:groupId/activities/:activityId
-  app.delete('/api/tracker/groups/:groupId/activities/:activityId', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
-    const { groupId, activityId } = req.params;
+  // DELETE /api/tracker/groups/:groupId/activities/:activityTitle
+  app.delete('/api/tracker/groups/:groupId/activities/:activityTitle', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const { groupId, activityTitle } = req.params;
     const currentUser = (req as any).user;
 
     if (!await isGroupAdmin(currentUser.username, groupId)) {
@@ -812,8 +789,8 @@ export function registerTrackerRoutes(
     }
 
     const result = await adminPool.query(
-      `DELETE FROM track WHERE id = $1 AND "group" = $2 RETURNING *`,
-      [activityId, groupId]
+      `DELETE FROM track WHERE "group" = $1 AND title = $2 RETURNING *`,
+      [groupId, activityTitle]
     );
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
@@ -822,20 +799,20 @@ export function registerTrackerRoutes(
     return res.json({ success: true });
   }));
 
-  // DELETE /api/tracker/activities/:activityId/records/:recordId
-  app.delete('/api/tracker/activities/:activityId/records/:recordId', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
-    const { activityId, recordId } = req.params;
+  // DELETE /api/tracker/groups/:groupId/activities/:activityTitle/records/:recordId
+  app.delete('/api/tracker/groups/:groupId/activities/:activityTitle/records/:recordId', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const { groupId, activityTitle, recordId } = req.params;
     const currentUser = (req as any).user;
 
     const recordCheck = await adminPool.query(
-      `SELECT l.user_id, t."group" FROM log l JOIN track t ON l.track = t.id WHERE l.id = $1 AND l.track = $2`,
-      [recordId, activityId]
+      `SELECT l.user_id FROM log l WHERE l.id = $1 AND l.track_group = $2 AND l.track_title = $3`,
+      [recordId, groupId, activityTitle]
     );
     if (recordCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Record not found' });
     }
 
-    const { user_id: ownerId, group: groupId } = recordCheck.rows[0];
+    const { user_id: ownerId } = recordCheck.rows[0];
     const isOwner = currentUser.username === ownerId;
 
     if (!isOwner && !await isGroupAdmin(currentUser.username, groupId)) {
