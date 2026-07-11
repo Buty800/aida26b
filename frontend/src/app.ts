@@ -2410,9 +2410,11 @@ async function showTrackerGroupDetails(groupId: string, name: string, desc: stri
     addActivityBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
   }
 
-  // Clear comparison container in case it had old data
-  const comparisonContainer = document.getElementById('group-comparison-container');
-  if (comparisonContainer) comparisonContainer.innerHTML = '';
+  // Hide stats if open, show columns
+  const columns = document.getElementById('group-columns');
+  const statsContainer = document.getElementById('group-stats-container');
+  if (columns) columns.style.display = '';
+  if (statsContainer) statsContainer.style.display = 'none';
 
   await loadGroupActivities(groupId);
   await loadGroupMembers(groupId);
@@ -2446,7 +2448,7 @@ async function loadGroupActivities(groupId: string) {
         </div>
         <div class="activity-actions">
           <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Registrar</button>
-          <button class="nav-toggle-btn" onclick="window.loadActivityComparisons('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Progreso</button>
+          <button class="nav-toggle-btn" onclick="window.openActivityStats('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Progreso</button>
         </div>
       </div>
     `).join('');
@@ -2817,48 +2819,6 @@ document.getElementById('delete-group-btn')?.addEventListener('click', () => {
       }
     }
   );
-};
-
-(window as any).loadActivityComparisons = async (activityId: string, activityTitle: string) => {
-  const container = document.getElementById('group-comparison-container');
-  if (!container) return;
-
-  try {
-    const response = await apiFetch(`/tracker/activities/${activityId}/comparisons`);
-    if (!response.ok) {
-      container.innerHTML = `<p class="error-text">Error al cargar comparaciones</p>`;
-      return;
-    }
-    const resAnswer = await response.json();
-    const data = resAnswer.data || [];
-
-    if (data.length === 0) {
-      container.innerHTML = `<h4>Progreso de Miembros: ${activityTitle}</h4><p class="empty-text">No hay registros para comparar.</p>`;
-      return;
-    }
-
-    const maxVal = Math.max(...data.map((c: any) => c.total_value), 1);
-    container.innerHTML = `
-      <h4>Progreso de Miembros: ${activityTitle}</h4>
-      ${data.map((item: any) => {
-        const percentage = Math.round((item.total_value / maxVal) * 100);
-        return `
-          <div class="comparison-row">
-            <div class="comparison-label">
-              <span>${item.displayname || item.username}</span>
-              <span>${item.total_value} (${percentage}%)</span>
-            </div>
-            <div class="comparison-bar-bg">
-              <div class="comparison-bar-fill" style="width: ${percentage}%;"></div>
-            </div>
-          </div>
-        `;
-      }).join('')}
-    `;
-  } catch (error) {
-    console.error('Comparisons load failed:', error);
-    container.innerHTML = `<p class="error-text">Error de conexión</p>`;
-  }
 };
 
 const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
