@@ -23,8 +23,8 @@ const PAGE_SIZE = 20;
 type Role = 'admin' | 'editor' | 'reader';
 
 type AuthUser = {
+  id: number;
   username: string;
-  displayname: string;
   email: string | null;
   role: Role;
   is_active: boolean;
@@ -606,10 +606,14 @@ function showSection(section: TableKey, pushState = true): void {
 }
 
 window.addEventListener('popstate', () => {
-  syncUrlToState();
+  if (window.location.pathname === '/panel') {
+    syncUrlToState();
 
-  if (currentUser && !currentUser.must_change_password) {
-    showSection(activeTableKey, false);
+    if (currentUser && !currentUser.must_change_password) {
+      showSection(activeTableKey, false);
+    }
+  } else {
+    renderRoute();
   }
 });
 
@@ -1871,37 +1875,28 @@ const toggleAuthLink = document.getElementById('toggle-auth-link') as HTMLAnchor
 const displaynameGroup = document.getElementById('displayname-group') as HTMLElement | null;
 const loginTitle = document.getElementById('login-title') as HTMLElement | null;
 const loginSubmitBtn = document.getElementById('login-submit-btn') as HTMLButtonElement | null;
-const displaynameInput = document.getElementById('login-displayname') as HTMLInputElement  | null;
-const passwordHint = document.getElementById('password-hint') as HTMLElement | null;
-
-if (displaynameInput) {
-  displaynameInput.required = false;
-}
+const loginDisplayname = document.getElementById('login-displayname') as HTMLInputElement | null;
 
 if (toggleAuthLink) {
   toggleAuthLink.addEventListener('click', (e) => {
     e.preventDefault();
     isRegisterMode = !isRegisterMode;
-    if (displaynameGroup && loginTitle && loginSubmitBtn) {
+    if (displaynameGroup && loginTitle && loginSubmitBtn && loginDisplayname) {
+      const passwordHint = document.getElementById('password-hint');
       if (isRegisterMode) {
         displaynameGroup.style.display = 'block';
         if (passwordHint) passwordHint.style.display = 'block';
         loginTitle.textContent = 'Registrarse';
         loginSubmitBtn.textContent = 'Registrarse';
         toggleAuthLink.textContent = '¿Ya tienes cuenta? Ingresa';
-        if (displaynameInput) displaynameInput.required = true;
-
+        loginDisplayname.required = true;
       } else {
         displaynameGroup.style.display = 'none';
         if (passwordHint) passwordHint.style.display = 'none';
         loginTitle.textContent = 'Ingresar';
         loginSubmitBtn.textContent = 'Ingresar';
         toggleAuthLink.textContent = '¿No tienes cuenta? Regístrate';
-        if (displaynameInput) {
-          displaynameInput.required = false;
-          displaynameInput.value = '';
-        }
-
+        loginDisplayname.required = false;
       }
     }
   });
@@ -1926,7 +1921,8 @@ loginForm.addEventListener('submit', async (event) => {
       });
 
       if (!response.ok) {
-        loginError.textContent = 'Error al registrar usuario (nombre de usuario duplicado)';
+        const err = await response.json().catch(() => ({}));
+        loginError.textContent = err.error || 'Error al registrar usuario';
         loginError.hidden = false;
         return;
       }
@@ -2056,8 +2052,18 @@ function renderRoute(): void {
       goToAdminBtn.style.display = currentUser.role === 'admin' ? 'inline-block' : 'none';
     }
 
-    // Default to active tab in sidebar
-    switchTrackerTab('dashboard');
+    // Parse tracker path for tab and group detail
+    const groupMatch = path.match(/^\/groups\/(.+)$/);
+    if (groupMatch) {
+      switchTrackerTab('groups', { updateUrl: false, loadData: false });
+      showTrackerGroupById(groupMatch[1]);
+    } else if (path === '/groups') {
+      switchTrackerTab('groups', { updateUrl: false });
+    } else if (path === '/friends') {
+      switchTrackerTab('friends', { updateUrl: false });
+    } else {
+      switchTrackerTab('dashboard', { updateUrl: false });
+    }
   }
 }
 
@@ -2075,30 +2081,9 @@ if (goToAdminBtn) {
   });
 }
 
-function logout(btn: HTMLElement | null) {
-  
-  if (btn) {
-    btn.addEventListener('click', async () => {
-      await fetch(`${API_BASE}/auth/logout`, {
-      method: 'POST',
-      credentials: 'same-origin',
-    });
-  showLogin();
-  hideApplication();
-  });
-  }
-  
-}
-
-
-
-const trackerLogoutBtn: HTMLElement | null = document.getElementById('tracker-logout-btn');
-logout(trackerLogoutBtn)
-logout(logoutBtn)
-/*
-if (trackerLogoutBtn) {
-  trackerLogoutBtn.addEventListener('click', async () => {
-    
+function logoutMethod(element: HTMLElement | null) {
+  if (element) {
+  element.addEventListener('click', async () => {
     await fetch(`${API_BASE}/auth/logout`, {
       method: 'POST',
       credentials: 'same-origin',
@@ -2107,7 +2092,12 @@ if (trackerLogoutBtn) {
   hideApplication();
   });
 }
-*/
+}
+
+const trackerLogoutBtn = document.getElementById('tracker-logout-btn');
+logoutMethod(trackerLogoutBtn);
+const dashboardLogoutBtn = document.getElementById('logout-btn');
+logoutMethod(dashboardLogoutBtn);
 
 // Tab switcher controller
 const trackerTabs = {
@@ -2148,24 +2138,21 @@ cacheDashboardElements();
 
 
 async function loadDashboardStats() {
-  console.log("Dashboard loading information")
   try {
-    console.log("Dashboard fetching stats ")
     const response = await fetch(`${API_BASE}/tracker/stats`, {
       credentials: 'same-origin',
     });
-    console.log("Dashboard get response", response)
+
     if (!response.ok) {
       throw new Error('Failed to load dashboard stats');
     }
-  
+
     const result = await response.json();
-    console.log("Results: ", result)
+
     statGroupsCount.textContent = result.data.groups.toString();
     statFriendsCount.textContent = result.data.friends.toString();
     statLogsCount.textContent = result.data.logs.toString();
   } catch (error) {
-    
     console.error('Error loading dashboard stats:', error);
   }
 }
@@ -2176,7 +2163,7 @@ trackerTabs.dashboard.btn.addEventListener('click', async () => {
 
 loadDashboardStats();
 
-function switchTrackerTab(tabKey: 'dashboard' | 'groups' | 'friends') {
+function switchTrackerTab(tabKey: 'dashboard' | 'groups' | 'friends', { updateUrl = true, loadData = true } = {}) {
   Object.entries(trackerTabs).forEach(([key, value]) => {
     if (value.btn && value.section) {
       const active = key === tabKey;
@@ -2185,9 +2172,16 @@ function switchTrackerTab(tabKey: 'dashboard' | 'groups' | 'friends') {
     }
   });
 
-  if (tabKey === 'dashboard') loadTrackerDashboard();
-  else if (tabKey === 'groups') loadTrackerGroups();
-  else if (tabKey === 'friends') loadTrackerFriends();
+  if (loadData) {
+    if (tabKey === 'dashboard') loadTrackerDashboard();
+    else if (tabKey === 'groups') loadTrackerGroups();
+    else if (tabKey === 'friends') loadTrackerFriends();
+  }
+
+  if (updateUrl) {
+    const url = tabKey === 'dashboard' ? '/' : `/${tabKey}`;
+    window.history.pushState({ tab: tabKey }, '', url);
+  }
 }
 
 Object.entries(trackerTabs).forEach(([key, value]) => {
@@ -2240,37 +2234,31 @@ async function loadTrackerDashboard() {
 }
 
 async function loadTrackerGroups() {
-  console.log("Tracking groups")
   const groupsList = document.getElementById('groups-list');
   const groupDetailsView = document.getElementById('group-details-view');
   if (!groupsList) return;
-  console.log("Tracking group list")
+
   groupsList.style.display = 'grid';
   if (groupDetailsView) groupDetailsView.style.display = 'none';
 
   try {
-    console.log("Calling tracker groups")
     const response = await apiFetch('/tracker/groups');
     if (!response.ok) {
-      console.log("Error al cargar grupos")
       groupsList.innerHTML = `<p class="error-text">Error al cargar grupos</p>`;
       return;
     }
-    console.log("Response ok", response)
     const resAnswer = await response.json();
-    
     if (!resAnswer.success) {
-      console.log("Not success after json")
       groupsList.innerHTML = `<p class="error-text">${resAnswer.error || 'Error'}</p>`;
       return;
     }
 
     const groups = resAnswer.data || [];
-    console.log("Groups: ", groups)
     if (groups.length === 0) {
       groupsList.innerHTML = `<p class="empty-text">No perteneces a ningún grupo aún.</p>`;
       return;
     }
+
     groupsList.innerHTML = groups.map((group: any) => `
       <div class="group-card" id="group-card-${group.id}" style="cursor: pointer;">
         <h3>${group.displayname}</h3>
@@ -2296,7 +2284,7 @@ async function loadTrackerGroups() {
   }
 }
 
-async function showTrackerGroupDetails(groupId: string, name: string, desc: string, role: string) {
+async function showTrackerGroupDetails(groupId: string, name: string, desc: string, role: string, { updateUrl = true } = {}) {
   currentGroupId = groupId;
   currentGroupRole = role;
 
@@ -2315,23 +2303,55 @@ async function showTrackerGroupDetails(groupId: string, name: string, desc: stri
   // Enforce role-based actions on the UI
   const inviteMemberBtn = document.getElementById('invite-member-btn');
   const addActivityBtn = document.getElementById('add-activity-btn');
+  const deleteGroupBtn = document.getElementById('delete-group-btn');
   if (inviteMemberBtn) {
     inviteMemberBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
   }
   if (addActivityBtn) {
     addActivityBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
   }
+  if (deleteGroupBtn) {
+    deleteGroupBtn.style.display = role === 'admin' ? 'inline-block' : 'none';
+  }
 
-  // Clear comparison container in case it had old data
-  const comparisonContainer = document.getElementById('group-comparison-container');
-  if (comparisonContainer) comparisonContainer.innerHTML = '';
+  // Hide stats if open, show columns
+  const columns = document.getElementById('group-columns');
+  const statsContainer = document.getElementById('group-stats-container');
+  if (columns) columns.style.display = '';
+  if (statsContainer) statsContainer.style.display = 'none';
 
   await loadGroupActivities(groupId);
   await loadGroupMembers(groupId);
+
+  if (updateUrl) {
+    window.history.pushState(
+      { tab: 'groups', groupId, groupName: name, groupDesc: desc, groupRole: role },
+      '',
+      `/groups/${groupId}`
+    );
+  }
+}
+
+async function showTrackerGroupById(groupId: string) {
+  const state = window.history.state;
+  if (state?.tab === 'groups' && state?.groupId === groupId && state?.groupName) {
+    showTrackerGroupDetails(groupId, state.groupName, state.groupDesc || '', state.groupRole || 'member', { updateUrl: false });
+    return;
+  }
+  try {
+    const response = await apiFetch('/tracker/groups');
+    if (!response.ok) return;
+    const groups = (await response.json()).data || [];
+    const group = groups.find((g: any) => g.id === groupId);
+    if (group) {
+      showTrackerGroupDetails(group.id, group.displayname, group.description || '', group.role, { updateUrl: false });
+    }
+  } catch (error) {
+    console.error('Failed to load group:', error);
+  }
 }
 
 async function loadGroupActivities(groupId: string) {
-  console.log("")
   const activitiesList = document.getElementById('group-activities-list');
   if (!activitiesList) return;
 
@@ -2342,7 +2362,6 @@ async function loadGroupActivities(groupId: string) {
       return;
     }
     const resAnswer = await response.json();
-    console.log(resAnswer)
     const activities = resAnswer.data || [];
 
     if (activities.length === 0) {
@@ -2350,18 +2369,22 @@ async function loadGroupActivities(groupId: string) {
       return;
     }
 
-    activitiesList.innerHTML = activities.map((act: any) => `
+    activitiesList.innerHTML = activities.map((act: any) => {
+      const escapedTitle = act.title.replace(/'/g, "\\'");
+      const isAdmin = currentGroupRole === 'admin';
+      return `
       <div class="activity-item">
-        <div class="activity-info">
+        <div class="activity-info" style="cursor:pointer;" onclick="window.openActivityStats('${act.id}', '${escapedTitle}')">
           <h4>${act.title}</h4>
           <p>${act.body || 'Sin descripción'}</p>
         </div>
         <div class="activity-actions">
-          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Registrar</button>
-          <button class="nav-toggle-btn" onclick="window.loadActivityComparisons('${act.id}', '${act.title.replace(/'/g, "\\'")}')">Progreso</button>
+          <button class="add-btn" style="margin-bottom: 0;" onclick="window.openLogActivityModal('${act.id}', '${escapedTitle}')">Registrar</button>
+          <button class="nav-toggle-btn" onclick="window.openActivityStats('${act.id}', '${escapedTitle}')">Progreso</button>
+          ${isAdmin ? `<button class="delete-btn-sm" onclick="window.deleteActivity('${currentGroupId}', '${act.id}')" style="margin-bottom:0;">−</button>` : ''}
         </div>
       </div>
-    `).join('');
+    `}).join('');
   } catch (error) {
     console.error('Activities load failed:', error);
     activitiesList.innerHTML = `<p class="error-text">Error de conexión</p>`;
@@ -2381,15 +2404,34 @@ async function loadGroupMembers(groupId: string) {
     const resAnswer = await response.json();
     const members = resAnswer.data || [];
 
-    membersList.innerHTML = members.map((member: any) => `
-      <div class="member-item">
-        <div class="member-info">
-          <span class="name">${member.displayname || member.user_id}</span>
-          <span class="username">@${member.user_id}</span>
+    const isAdmin = currentGroupRole === 'admin';
+
+    let html = members.map((member: any) => {
+      const canKick = isAdmin && member.role !== 'admin';
+      return `
+        <div class="member-item">
+          <div class="member-info">
+            <span class="name">${member.displayname || member.user_id}</span>
+            <span class="username">@${member.user_id}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="badge ${member.role === 'admin' ? 'admin' : 'member'}">${member.status === 'active' ? (member.role === 'admin' ? 'Admin' : 'Miembro') : 'Pendiente'}</span>
+            ${canKick ? `<button class="delete-btn-sm" onclick="window.kickMember('${groupId}', '${member.user_id}')">−</button>` : ''}
+          </div>
         </div>
-        <span class="badge ${member.role === 'admin' ? 'admin' : 'member'}">${member.status === 'active' ? (member.role === 'admin' ? 'Admin' : 'Miembro') : 'Pendiente'}</span>
-      </div>
-    `).join('');
+      `;
+    }).join('');
+
+    // Leave group button for non-admins
+    if (!isAdmin) {
+      html += `
+        <div style="margin-top:12px;text-align:center;">
+          <button class="delete-btn" onclick="window.leaveGroup('${groupId}')" style="width:100%;">Salir del grupo</button>
+        </div>
+      `;
+    }
+
+    membersList.innerHTML = html;
   } catch (error) {
     console.error('Members load failed:', error);
     membersList.innerHTML = `<p class="error-text">Error de conexión</p>`;
@@ -2420,6 +2462,7 @@ async function loadTrackerFriends() {
             <div class="friend-avatar">${initials}</div>
             <h4 class="friend-name">${friend.displayname || friend.username}</h4>
             <span class="friend-username">@${friend.username}</span>
+            <button class="delete-btn-sm" onclick="window.removeFriend('${friend.username}')" style="margin-top:6px;">−</button>
           </div>
         `;
       }).join('');
@@ -2452,6 +2495,7 @@ async function loadTrackerFriends() {
               <span class="name">${req.displayname || req.username}</span>
               <span class="username">@${req.username} (Enviada)</span>
             </div>
+            <button class="delete-btn" onclick="window.respondFriendRequest('${req.username}', 'rejected')">Cancelar</button>
           </div>
         `;
       });
@@ -2467,37 +2511,42 @@ async function loadTrackerFriends() {
 // Reusable modal controllers
 const trackerModal = document.getElementById('tracker-modal') as HTMLElement;
 const modalTitle = document.getElementById('modal-title') as HTMLElement;
-const modalFormFields = document.getElementById('modal-form-fields') as HTMLElement;
-const trackerModalForm = document.getElementById('tracker-modal-form') as HTMLFormElement;
-const modalCancelBtn = document.getElementById('modal-cancel-btn') as HTMLButtonElement | null;
-
-// Holds whichever "submit" behavior the currently open modal needs.
-let currentModalSubmitHandler: ((e: Event) => void) | null = null;
-
-function closeTrackerModal(): void {
-  trackerModal.style.display = 'none';
-}
+let modalFormFields = document.getElementById('modal-form-fields') as HTMLElement;
+let trackerModalForm = document.getElementById('tracker-modal-form') as HTMLFormElement;
 
 function openTrackerModal(title: string, fieldsHtml: string, onSubmit: (e: Event) => void) {
-  if (!trackerModal || !modalTitle || !modalFormFields || !trackerModalForm) return;
+  if (trackerModal && modalTitle && modalFormFields) {
+    modalTitle.textContent = title;
+    modalFormFields.innerHTML = fieldsHtml;
+    trackerModal.style.display = 'flex';
+    
+    // Bind cancel action
+    const cancelBtn = document.getElementById('modal-cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', () => {
+        trackerModal.style.display = 'none';
+      });
+    }
 
-  modalTitle.textContent = title;
-  modalFormFields.innerHTML = fieldsHtml;
-  currentModalSubmitHandler = onSubmit;
-  trackerModal.style.display = 'flex';
-}
+    // Rebind submit action
+    const newForm = trackerModalForm.cloneNode(true) as HTMLFormElement;
+    trackerModalForm.parentNode?.replaceChild(newForm, trackerModalForm);
+    trackerModalForm = newForm;
+    modalFormFields = newForm.querySelector('#modal-form-fields') as HTMLElement;
+    
+    const reBoundCancelBtn = newForm.querySelector('#modal-cancel-btn');
+    if (reBoundCancelBtn) {
+      reBoundCancelBtn.addEventListener('click', () => {
+        trackerModal.style.display = 'none';
+      });
+    }
 
-// Bound ONCE, when the script loads — no more cloning/replacing nodes.
-if (modalCancelBtn) {
-  modalCancelBtn.addEventListener('click', closeTrackerModal);
-}
-
-if (trackerModalForm) {
-  trackerModalForm.addEventListener('submit', (e) => {
-    e.preventDefault();
-    currentModalSubmitHandler?.(e);
-    closeTrackerModal();
-  });
+    newForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      onSubmit(e);
+      trackerModal.style.display = 'none';
+    });
+  }
 }
 
 const createGroupBtn = document.getElementById('create-group-btn');
@@ -2543,6 +2592,24 @@ if (createGroupBtn) {
   });
 }
 
+const backToGroupsBtn = document.getElementById('back-to-groups-btn');
+if (backToGroupsBtn) {
+  backToGroupsBtn.addEventListener('click', () => {
+    const groupsList = document.getElementById('groups-list');
+    const groupDetailsView = document.getElementById('group-details-view');
+    if (groupsList) groupsList.style.display = 'grid';
+    if (groupDetailsView) groupDetailsView.style.display = 'none';
+    currentGroupId = null;
+    currentGroupRole = null;
+    window.history.pushState({ tab: 'groups' }, '', '/groups');
+  });
+}
+
+document.getElementById('delete-group-btn')?.addEventListener('click', () => {
+  if (!currentGroupId) return;
+  (window as any).deleteGroup(currentGroupId);
+});
+
 const addFriendTriggerBtn = document.getElementById('add-friend-trigger-btn');
 if (addFriendTriggerBtn) {
   addFriendTriggerBtn.addEventListener('click', () => {
@@ -2583,19 +2650,50 @@ if (addFriendTriggerBtn) {
 
 const inviteMemberBtn = document.getElementById('invite-member-btn');
 if (inviteMemberBtn) {
-  inviteMemberBtn.addEventListener('click', () => {
-    openTrackerModal(
-      'Invitar Miembro',
-      `
+  inviteMemberBtn.addEventListener('click', async () => {
+    if (!currentGroupId) return;
+
+    try {
+      const [friendsRes, membersRes] = await Promise.all([
+        apiFetch('/tracker/friends'),
+        apiFetch(`/tracker/groups/${currentGroupId}/members`)
+      ]);
+
+      if (!friendsRes.ok || !membersRes.ok) {
+        showErrorMessage('Error al cargar datos');
+        return;
+      }
+
+      const friendsData = await friendsRes.json();
+      const membersData = await membersRes.json();
+      const friends = friendsData.data?.friends || [];
+      const members = membersData.data || [];
+      const memberUsernames = new Set(members.map((m: any) => m.user_id));
+      const available = friends.filter((f: any) => !memberUsernames.has(f.username));
+
+      const noFriends = available.length === 0;
+      const fieldsHtml = noFriends ? `
         <div class="form-group">
-          <label for="invite-username-input">Usuario (@)</label>
-          <input id="invite-username-input" name="username" required>
+          <label for="invite-username-input">Amigos disponibles</label>
+          <select id="invite-username-input" name="username" required disabled style="opacity:0.5;">
+            <option value="">Ninguno Disponible</option>
+          </select>
         </div>
-      `,
-      async (e) => {
+      ` : `
+        <div class="form-group">
+          <label for="invite-username-input">Seleccionar amigo</label>
+          <select id="invite-username-input" name="username" required>
+            <option value="">— Seleccionar —</option>
+            ${available.map((f: any) => `<option value="${f.username}">${f.displayname} (@${f.username})</option>`).join('')}
+          </select>
+        </div>
+      `;
+
+      openTrackerModal('Invitar Miembro', fieldsHtml, async (e) => {
         if (!currentGroupId) return;
         const formData = new FormData(e.target as HTMLFormElement);
-        const username = formData.get('username');
+        const username = formData.get('username') as string;
+        if (!username) return;
 
         try {
           const response = await apiFetch(`/tracker/groups/${currentGroupId}/invite`, {
@@ -2615,8 +2713,11 @@ if (inviteMemberBtn) {
           console.error('Member invite failed:', error);
           showErrorMessage('Error de conexión al invitar miembro');
         }
-      }
-    );
+      });
+    } catch (error) {
+      console.error('Failed to load friends/members:', error);
+      showErrorMessage('Error al cargar datos');
+    }
   });
 }
 
@@ -2642,19 +2743,16 @@ if (addActivityBtn) {
         const body = formData.get('body') || null;
 
         try {
-          console.log("Creating new activity")
           const response = await apiFetch(`/tracker/groups/${currentGroupId}/activities`, {
             method: 'POST',
             body: JSON.stringify({ title, body, status: 'active' })
           });
 
-          console.log("Response after creativing activity", response)
           if (!response.ok) {
             const err = await response.json();
             showErrorMessage(err.error || 'Error al crear actividad');
             return;
           }
-          
 
           showSuccessMessage('Actividad creada con éxito');
           loadGroupActivities(currentGroupId);
@@ -2666,24 +2764,6 @@ if (addActivityBtn) {
     );
   });
 }
-
-const backToGroupsBtn = document.getElementById('back-to-groups-btn');
-if (backToGroupsBtn) {
-  backToGroupsBtn.addEventListener('click', () => {
-    const groupsList = document.getElementById('groups-list');
-    const groupDetailsView = document.getElementById('group-details-view');
-    if (groupsList) groupsList.style.display = 'grid';
-    if (groupDetailsView) groupDetailsView.style.display = 'none';
-    currentGroupId = null;
-    currentGroupRole = null;
-    window.history.pushState({ tab: 'groups' }, '', '/groups');
-  });
-}
-
-document.getElementById('delete-group-btn')?.addEventListener('click', () => {
-  if (!currentGroupId) return;
-  (window as any).deleteGroup(currentGroupId);
-});
 
 // Window globally exposed inline callbacks
 (window as any).openLogActivityModal = (activityId: string, activityTitle: string) => {
@@ -2729,48 +2809,6 @@ document.getElementById('delete-group-btn')?.addEventListener('click', () => {
       }
     }
   );
-};
-
-(window as any).loadActivityComparisons = async (activityId: string, activityTitle: string) => {
-  const container = document.getElementById('group-comparison-container');
-  if (!container) return;
-
-  try {
-    const response = await apiFetch(`/tracker/activities/${activityId}/comparisons`);
-    if (!response.ok) {
-      container.innerHTML = `<p class="error-text">Error al cargar comparaciones</p>`;
-      return;
-    }
-    const resAnswer = await response.json();
-    const data = resAnswer.data || [];
-
-    if (data.length === 0) {
-      container.innerHTML = `<h4>Progreso de Miembros: ${activityTitle}</h4><p class="empty-text">No hay registros para comparar.</p>`;
-      return;
-    }
-
-    const maxVal = Math.max(...data.map((c: any) => c.total_value), 1);
-    container.innerHTML = `
-      <h4>Progreso de Miembros: ${activityTitle}</h4>
-      ${data.map((item: any) => {
-        const percentage = Math.round((item.total_value / maxVal) * 100);
-        return `
-          <div class="comparison-row">
-            <div class="comparison-label">
-              <span>${item.displayname || item.username}</span>
-              <span>${item.total_value} (${percentage}%)</span>
-            </div>
-            <div class="comparison-bar-bg">
-              <div class="comparison-bar-fill" style="width: ${percentage}%;"></div>
-            </div>
-          </div>
-        `;
-      }).join('')}
-    `;
-  } catch (error) {
-    console.error('Comparisons load failed:', error);
-    container.innerHTML = `<p class="error-text">Error de conexión</p>`;
-  }
 };
 
 const CHART_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16'];
@@ -3055,6 +3093,7 @@ function buildCumulativeChart(records: any[], field: string, colors: Record<stri
     });
     const max = Math.max(...Object.values(grouped), 1);
     const userColorMap = colors;
+    // We don't have displaynames here, use user_id
     const bars = Object.entries(grouped).map(([uid, val]) => {
       const pct = (val / max) * 100;
       return `<div class="comparison-row">
@@ -3212,6 +3251,7 @@ function buildHeatmap(daily: any[]): string {
     contentEl.innerHTML = '<p class="error-text">Error de conexión</p>';
   }
 };
+
 
 // Toggle sum/count
 document.getElementById('stats-sum-btn')?.addEventListener('click', () => {
