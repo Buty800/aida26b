@@ -5,7 +5,8 @@ import { validateFullObject, sendErrorsIfInvalid } from '../validation/validate'
 
 export function registerTrackerRoutes(
   app: express.Express,
-  pool: Pool,
+  adminPool: Pool,   // academic tables
+  authPool: Pool,    // auth.users
   requireAuth: express.RequestHandler,
   requirePasswordReady: express.RequestHandler
 ) {
@@ -17,7 +18,7 @@ export function registerTrackerRoutes(
   }
 
   async function isGroupMember(userId: string, groupId: string): Promise<boolean> {
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
       [userId, groupId]
     );
@@ -25,9 +26,17 @@ export function registerTrackerRoutes(
   }
 
   async function isGroupAdmin(userId: string, groupId: string): Promise<boolean> {
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2 AND role = 'admin' AND status = 'active'`,
       [userId, groupId]
+    );
+    return result.rows.length > 0;
+  }
+
+  async function isGlobalAdmin(userId: string): Promise<boolean> {
+    const result = await adminPool.query(
+      `SELECT 1 FROM auth.users WHERE username = $1 AND role = 'admin'`,
+      [userId]
     );
     return result.rows.length > 0;
   }
@@ -70,7 +79,7 @@ export function registerTrackerRoutes(
       });
     }
 
-    const client = await pool.connect();
+    const client = await authPool.connect();
 
     try {
       await client.query('BEGIN');
@@ -137,7 +146,7 @@ export function registerTrackerRoutes(
 
   // GET /api/tracker/users
   app.get('/api/tracker/users', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
-    const result = await pool.query(
+    const result = await adminPool.query(
       'SELECT username, displayname FROM auth.users ORDER BY username ASC'
     );
     return res.json({
@@ -149,7 +158,7 @@ export function registerTrackerRoutes(
   // GET /api/tracker/groups
   app.get('/api/tracker/groups', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
     const currentUser = (req as any).user;
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT g.id, g.displayname, g.description, g.created_at, ug.role, ug.status
        FROM groups g
        JOIN user_group ug ON g.id = ug.group_id
@@ -174,7 +183,7 @@ export function registerTrackerRoutes(
     const { displayname, description } = validated.data;
     const currentUser = (req as any).user;
 
-    const client = await pool.connect();
+    const client = await adminPool.connect();
     try {
       await client.query('BEGIN');
 
@@ -221,7 +230,7 @@ export function registerTrackerRoutes(
       return res.status(403).json({ error: 'Only group administrators can send invitations' });
     }
 
-    const userCheck = await pool.query(
+    const userCheck = await adminPool.query(
       'SELECT 1 FROM auth.users WHERE username = $1',
       [username]
     );
@@ -229,7 +238,7 @@ export function registerTrackerRoutes(
       return res.status(404).json({ error: 'Target user not found' });
     }
 
-    const membershipCheck = await pool.query(
+    const membershipCheck = await adminPool.query(
       'SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2',
       [username, groupId]
     );
@@ -237,7 +246,7 @@ export function registerTrackerRoutes(
       return res.status(409).json({ error: 'User is already a member or has a pending invitation' });
     }
 
-    await pool.query(
+    await adminPool.query(
       `INSERT INTO user_group (user_id, group_id, role, status)
        VALUES ($1, $2, 'member', 'invited')`,
       [username, groupId]
@@ -259,7 +268,7 @@ export function registerTrackerRoutes(
       return res.status(400).json({ error: "Action must be 'accepted' or 'rejected'" });
     }
 
-    const inviteCheck = await pool.query(
+    const inviteCheck = await adminPool.query(
       `SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2 AND status = 'invited'`,
       [currentUser.username, groupId]
     );
@@ -269,12 +278,12 @@ export function registerTrackerRoutes(
     }
 
     if (action === 'accepted') {
-      await pool.query(
+      await adminPool.query(
         `UPDATE user_group SET status = 'active' WHERE user_id = $1 AND group_id = $2`,
         [currentUser.username, groupId]
       );
     } else {
-      await pool.query(
+      await adminPool.query(
         `DELETE FROM user_group WHERE user_id = $1 AND group_id = $2`,
         [currentUser.username, groupId]
       );
@@ -286,6 +295,68 @@ export function registerTrackerRoutes(
     });
   }));
 
+  // GET /api/tracker/invitations
+  app.get('/api/tracker/invitations', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const currentUser = (req as any).user;
+    const result = await adminPool.query(
+      `SELECT g.id, g.displayname, g.description, g.created_at, ug.role, ug.status
+       FROM user_group ug
+       JOIN groups g ON ug.group_id = g.id
+       WHERE ug.user_id = $1 AND ug.status = 'invited'
+       ORDER BY g.created_at DESC`,
+      [currentUser.username]
+    );
+
+    return res.json({
+      success: true,
+      data: result.rows,
+    });
+  }));
+
+  // GET /api/tracker/users/:username/invitations
+  // Accessible by the user themself or a global admin
+  app.get('/api/tracker/users/:username/invitations', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const { username } = req.params;
+    const currentUser = (req as any).user;
+
+    if (currentUser.username !== username && !await isGlobalAdmin(currentUser.username)) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const result = await adminPool.query(
+      `SELECT g.id, g.displayname, g.description, g.created_at, ug.role, ug.status
+       FROM user_group ug
+       JOIN groups g ON ug.group_id = g.id
+       WHERE ug.user_id = $1 AND ug.status = 'invited'
+       ORDER BY g.created_at DESC`,
+      [username]
+    );
+
+    return res.json({ success: true, data: result.rows });
+  }));
+
+  // GET /api/tracker/groups/:groupId/invitations
+  // Group admins can list pending invitations for their group
+  app.get('/api/tracker/groups/:groupId/invitations', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
+    const { groupId } = req.params;
+    const currentUser = (req as any).user;
+
+    if (!await isGroupAdmin(currentUser.username, groupId)) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const result = await adminPool.query(
+      `SELECT ug.user_id, u.displayname, ug.role, ug.status
+       FROM user_group ug
+       JOIN auth.users u ON ug.user_id = u.username
+       WHERE ug.group_id = $1 AND ug.status = 'invited'
+       ORDER BY ug.user_id ASC`,
+      [groupId]
+    );
+
+    return res.json({ success: true, data: result.rows });
+  }));
+
   // GET /api/tracker/groups/:groupId/members
   app.get('/api/tracker/groups/:groupId/members', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
     const { groupId } = req.params;
@@ -295,7 +366,7 @@ export function registerTrackerRoutes(
       return res.status(403).json({ error: 'Must be an active member of the group to view members' });
     }
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT ug.user_id, u.displayname, ug.role, ug.status
        FROM user_group ug
        JOIN auth.users u ON ug.user_id = u.username
@@ -319,7 +390,7 @@ export function registerTrackerRoutes(
       return res.status(403).json({ error: 'Must be an active member of the group to view activities' });
     }
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT id, title, body, "group", status, created_at 
        FROM track WHERE "group" = $1 ORDER BY created_at DESC`,
       [groupId]
@@ -345,7 +416,7 @@ export function registerTrackerRoutes(
     if (sendErrorsIfInvalid(res, validated)) return;
 
     const { title, body, status } = validated.data;
-    const result = await pool.query(
+    const result = await adminPool.query(
       `INSERT INTO track (title, body, "group", status)
        VALUES ($1, $2, $3, $4) RETURNING *`,
       [title, body, groupId, status]
@@ -362,7 +433,7 @@ export function registerTrackerRoutes(
     const { activityId } = req.params;
     const currentUser = (req as any).user;
 
-    const trackCheck = await pool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
+    const trackCheck = await adminPool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
     if (trackCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -372,7 +443,7 @@ export function registerTrackerRoutes(
       return res.status(403).json({ error: "Must be an active member of the activity's group to view records" });
     }
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar
         FROM log l JOIN auth.users u ON l.user_id = u.username
        WHERE l.track = $1 ORDER BY l.fecha DESC, l.id DESC`,
@@ -390,7 +461,7 @@ export function registerTrackerRoutes(
     const { activityId } = req.params;
     const currentUser = (req as any).user;
 
-    const trackCheck = await pool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
+    const trackCheck = await adminPool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
     if (trackCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -407,7 +478,7 @@ export function registerTrackerRoutes(
     if (sendErrorsIfInvalid(res, validated)) return;
 
     const { user_id, track, value, fecha, commentar } = validated.data;
-    const result = await pool.query(
+    const result = await adminPool.query(
       `INSERT INTO log (user_id, track, value, fecha, commentar)
        VALUES ($1, $2, $3, $4, $5) RETURNING *`,
       [user_id, track, value, fecha, commentar]
@@ -424,7 +495,7 @@ export function registerTrackerRoutes(
     const { activityId } = req.params;
     const currentUser = (req as any).user;
 
-    const trackCheck = await pool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
+    const trackCheck = await adminPool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
     if (trackCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -434,7 +505,7 @@ export function registerTrackerRoutes(
       return res.status(403).json({ error: "Must be an active member of the activity's group to view comparisons" });
     }
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT u.username, u.displayname, COALESCE(SUM(l.value), 0)::INTEGER AS total_value
        FROM user_group ug
        JOIN auth.users u ON ug.user_id = u.username
@@ -456,7 +527,7 @@ export function registerTrackerRoutes(
     const { activityId } = req.params;
     const currentUser = (req as any).user;
 
-    const trackCheck = await pool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
+    const trackCheck = await adminPool.query('SELECT "group" FROM track WHERE id = $1', [activityId]);
     if (trackCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Activity not found' });
     }
@@ -467,18 +538,18 @@ export function registerTrackerRoutes(
     }
 
     const [summary, perUser, perUserPerMonth, daily, records] = await Promise.all([
-      pool.query(
+      adminPool.query(
         `SELECT COUNT(*)::INTEGER AS total_count, COALESCE(SUM(value), 0)::INTEGER AS total_sum,
                 ROUND(COALESCE(AVG(value), 0), 1)::NUMERIC(10,1) AS average,
                 COALESCE(MAX(value), 0)::INTEGER AS max, COALESCE(MIN(value), 0)::INTEGER AS min
          FROM log WHERE track = $1`, [activityId]
       ),
-      pool.query(
+      adminPool.query(
         `SELECT l.user_id, u.displayname, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
          FROM log l JOIN auth.users u ON l.user_id = u.username
          WHERE l.track = $1 GROUP BY l.user_id, u.displayname`, [activityId]
       ),
-      pool.query(
+      adminPool.query(
         `SELECT EXTRACT(YEAR FROM l.fecha)::INTEGER AS year, EXTRACT(MONTH FROM l.fecha)::INTEGER AS month,
                 l.user_id, u.displayname, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
          FROM log l JOIN auth.users u ON l.user_id = u.username
@@ -486,12 +557,12 @@ export function registerTrackerRoutes(
          GROUP BY year, month, l.user_id, u.displayname
          ORDER BY year, month`, [activityId]
       ),
-      pool.query(
+      adminPool.query(
         `SELECT l.fecha::DATE AS date, COUNT(*)::INTEGER AS count, COALESCE(SUM(l.value), 0)::INTEGER AS sum
          FROM log l WHERE l.track = $1
          GROUP BY date ORDER BY date`, [activityId]
       ),
-      pool.query(
+      adminPool.query(
         `SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar
          FROM log l JOIN auth.users u ON l.user_id = u.username
          WHERE l.track = $1 ORDER BY l.fecha DESC`, [activityId]
@@ -514,7 +585,7 @@ export function registerTrackerRoutes(
   app.get('/api/tracker/friends', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
     const currentUser = (req as any).user;
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT f.friend1, u1.displayname AS displayname1,
               f.friend2, u2.displayname AS displayname2, f.request
        FROM friends f
@@ -562,7 +633,7 @@ export function registerTrackerRoutes(
       return res.status(400).json({ error: 'Cannot send a friend request to yourself' });
     }
 
-    const userCheck = await pool.query('SELECT 1 FROM auth.users WHERE username = $1', [username]);
+    const userCheck = await adminPool.query('SELECT 1 FROM auth.users WHERE username = $1', [username]);
     if (userCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Target user not found' });
     }
@@ -571,7 +642,7 @@ export function registerTrackerRoutes(
       ? [currentUser.username, username]
       : [username, currentUser.username];
 
-    const relCheck = await pool.query(
+    const relCheck = await adminPool.query(
       'SELECT request FROM friends WHERE friend1 = $1 AND friend2 = $2',
       [friend1, friend2]
     );
@@ -579,7 +650,7 @@ export function registerTrackerRoutes(
       return res.status(409).json({ error: 'A friend relationship or pending request already exists' });
     }
 
-    await pool.query(
+    await adminPool.query(
       `INSERT INTO friends (friend1, friend2, request) VALUES ($1, $2, 'pending')`,
       [friend1, friend2]
     );
@@ -606,7 +677,7 @@ export function registerTrackerRoutes(
       ? [currentUser.username, username]
       : [username, currentUser.username];
 
-    const relCheck = await pool.query(
+    const relCheck = await adminPool.query(
       'SELECT request FROM friends WHERE friend1 = $1 AND friend2 = $2',
       [friend1, friend2]
     );
@@ -618,12 +689,12 @@ export function registerTrackerRoutes(
     }
 
     if (action === 'accepted') {
-      await pool.query(
+      await adminPool.query(
         `UPDATE friends SET request = 'accepted' WHERE friend1 = $1 AND friend2 = $2`,
         [friend1, friend2]
       );
     } else {
-      await pool.query(
+      await adminPool.query(
         `DELETE FROM friends WHERE friend1 = $1 AND friend2 = $2`,
         [friend1, friend2]
       );
@@ -639,7 +710,7 @@ export function registerTrackerRoutes(
   app.get('/api/tracker/logs', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
     const currentUser = (req as any).user;
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `SELECT l.id, t.title AS activity_title, g.displayname AS group_name,
               l.value, l.fecha, l.commentar
        FROM log l
@@ -662,7 +733,7 @@ export function registerTrackerRoutes(
     const { groupId, userId } = req.params;
     const currentUser = (req as any).user;
 
-    const membership = await pool.query(
+    const membership = await adminPool.query(
       `SELECT role, status FROM user_group WHERE user_id = $1 AND group_id = $2`,
       [currentUser.username, groupId]
     );
@@ -683,7 +754,7 @@ export function registerTrackerRoutes(
       return res.status(400).json({ error: 'Transfer admin before leaving, or delete the group' });
     }
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `DELETE FROM user_group WHERE user_id = $1 AND group_id = $2 RETURNING *`,
       [userId, groupId]
     );
@@ -699,7 +770,7 @@ export function registerTrackerRoutes(
     const { groupId } = req.params;
     const currentUser = (req as any).user;
 
-    const membership = await pool.query(
+    const membership = await adminPool.query(
       `SELECT role FROM user_group WHERE user_id = $1 AND group_id = $2 AND status = 'active'`,
       [currentUser.username, groupId]
     );
@@ -710,7 +781,7 @@ export function registerTrackerRoutes(
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    await pool.query('DELETE FROM groups WHERE id = $1', [groupId]);
+    await adminPool.query('DELETE FROM groups WHERE id = $1', [groupId]);
     return res.json({ success: true });
   }));
 
@@ -723,7 +794,7 @@ export function registerTrackerRoutes(
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `DELETE FROM track WHERE id = $1 AND "group" = $2 RETURNING *`,
       [activityId, groupId]
     );
@@ -739,7 +810,7 @@ export function registerTrackerRoutes(
     const { activityId, recordId } = req.params;
     const currentUser = (req as any).user;
 
-    const recordCheck = await pool.query(
+    const recordCheck = await adminPool.query(
       `SELECT l.user_id, t."group" FROM log l JOIN track t ON l.track = t.id WHERE l.id = $1 AND l.track = $2`,
       [recordId, activityId]
     );
@@ -754,7 +825,7 @@ export function registerTrackerRoutes(
       return res.status(403).json({ error: 'Only the record owner or a group admin can delete this record' });
     }
 
-    await pool.query('DELETE FROM log WHERE id = $1', [recordId]);
+    await adminPool.query('DELETE FROM log WHERE id = $1', [recordId]);
     return res.json({ success: true });
   }));
 
@@ -767,7 +838,7 @@ export function registerTrackerRoutes(
       ? [currentUser.username, username]
       : [username, currentUser.username];
 
-    const result = await pool.query(
+    const result = await adminPool.query(
       `DELETE FROM friends WHERE friend1 = $1 AND friend2 = $2 RETURNING *`,
       [friend1, friend2]
     );
@@ -843,9 +914,9 @@ export function registerTrackerRoutes(
   // GET /api/tracker/stats
   app.get('/api/tracker/stats', requireAuth, requirePasswordReady, asyncHandler(async (req, res) => {
     const currentUser = (req as any).user;
-    const groups = await getGroupCount(pool, currentUser.username);
-    const friends = await getFriendCount(pool, currentUser.username);
-    const logs = await getLogCount(pool, currentUser.username);
+    const groups = await getGroupCount(adminPool, currentUser.username);
+    const friends = await getFriendCount(adminPool, currentUser.username);
+    const logs = await getLogCount(adminPool, currentUser.username);
 
     return res.json({
       success: true,

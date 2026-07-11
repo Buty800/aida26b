@@ -420,7 +420,7 @@ app.post(
 );
 
 // Register Tracker endpoints (uses adminPool — no access to password hashes)
-registerTrackerRoutes(app, adminPool, requireAuth, requirePasswordReady);
+registerTrackerRoutes(app, adminPool, authPool, requireAuth, requirePasswordReady);
 
 // Generic academic API routes (restricted to admins, uses adminPool)
 app.get('/api/:tableName', requireAuth, requirePasswordReady, requireAdmin, async (req, res) => {
@@ -476,7 +476,7 @@ app.get('*', (_req, res) => {
   return res.sendFile(path.join(frontendDistPath, 'index.html'));
 });
 
-export { app, pool };
+export { app, pool, adminPool, authPool };
 
 if (require.main === module) {
   app.listen(port, () => {
