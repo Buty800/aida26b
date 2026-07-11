@@ -2241,6 +2241,18 @@ async function loadTrackerGroups() {
   groupsList.style.display = 'grid';
   if (groupDetailsView) groupDetailsView.style.display = 'none';
 
+    // Render invitations section (loaded when 'Mis grupos' is opened)
+    const invitationsSectionId = 'invitations-section';
+    let invitationsSection = document.getElementById(invitationsSectionId);
+    if (!invitationsSection) {
+      invitationsSection = document.createElement('div');
+      invitationsSection.id = invitationsSectionId;
+      invitationsSection.className = 'invitations-section';
+      // insert above groups list
+      groupsList.parentNode?.insertBefore(invitationsSection, groupsList);
+    }
+    invitationsSection.innerHTML = `<h3>Invitaciones</h3><div id="invitations-list">Cargando...</div>`;
+
   try {
     const response = await apiFetch('/tracker/groups');
     if (!response.ok) {
@@ -2269,6 +2281,77 @@ async function loadTrackerGroups() {
         </div>
       </div>
     `).join('');
+
+    // load invitations after groups rendered
+    try {
+      const invResp = await apiFetch('/tracker/invitations');
+      const invitationsListEl = document.getElementById('invitations-list');
+      if (!invitationsListEl) throw new Error('No invitations container');
+      if (!invResp.ok) {
+        invitationsListEl.innerHTML = `<p class="error-text">Error al cargar invitaciones</p>`;
+      } else {
+        const invAns = await invResp.json();
+        if (!invAns.success) {
+          invitationsListEl.innerHTML = `<p class="error-text">${invAns.error || 'Error'}</p>`;
+        } else {
+          const invs = invAns.data || [];
+          if (invs.length === 0) {
+            invitationsListEl.innerHTML = `<p class="empty-text">No tienes invitaciones pendientes</p>`;
+          } else {
+            invitationsListEl.innerHTML = invs.map((inv: any) => `
+              <div class="invite-item" id="invite-${inv.id}">
+                <div class="invite-info">
+                  <strong>${inv.displayname}</strong>
+                  <div class="invite-desc">${inv.description || ''}</div>
+                  <div class="invite-meta">Recibido: ${new Date(inv.created_at).toLocaleDateString()}</div>
+                </div>
+                <div class="invite-actions">
+                  <button data-group-id="${inv.id}" data-action="accepted" class="accept-invite-btn">Aceptar</button>
+                  <button data-group-id="${inv.id}" data-action="rejected" class="reject-invite-btn">Rechazar</button>
+                </div>
+              </div>
+            `).join('');
+
+            // attach handlers
+            invitationsListEl.querySelectorAll('button[data-group-id]').forEach((btn) => {
+              btn.addEventListener('click', async (ev) => {
+                const target = ev.currentTarget as HTMLButtonElement;
+                const gid = target.getAttribute('data-group-id');
+                const action = target.getAttribute('data-action');
+                if (!gid || !action) return;
+                try {
+                  const resp = await apiFetch(`/tracker/groups/${gid}/invite/respond`, {
+                    method: 'POST',
+                    body: JSON.stringify({ action }),
+                    headers: { 'Content-Type': 'application/json' }
+                  });
+                  if (!resp.ok) {
+                    const msg = await errorMessage(resp);
+                    showErrorMessage(msg);
+                    return;
+                  }
+                  const ans = await resp.json();
+                  if (!ans.success && ans.error) {
+                    showErrorMessage(ans.error);
+                    return;
+                  }
+                  showSuccessMessage(action === 'accepted' ? 'Invitación aceptada' : 'Invitación rechazada');
+                  // refresh groups & invitations
+                  await loadTrackerGroups();
+                } catch (err) {
+                  console.error('Respond invite failed', err);
+                  showErrorMessage('Error al responder invitación');
+                }
+              });
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load invitations', err);
+      const invitationsListEl = document.getElementById('invitations-list');
+      if (invitationsListEl) invitationsListEl.innerHTML = `<p class="error-text">Error de conexión</p>`;
+    }
 
     groups.forEach((group: any) => {
       const card = document.getElementById(`group-card-${group.id}`);
