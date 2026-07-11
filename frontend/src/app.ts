@@ -2095,19 +2095,7 @@ function logout(btn: HTMLElement | null) {
 const trackerLogoutBtn: HTMLElement | null = document.getElementById('tracker-logout-btn');
 logout(trackerLogoutBtn)
 logout(logoutBtn)
-/*
-if (trackerLogoutBtn) {
-  trackerLogoutBtn.addEventListener('click', async () => {
-    
-    await fetch(`${API_BASE}/auth/logout`, {
-      method: 'POST',
-      credentials: 'same-origin',
-    });
-  showLogin();
-  hideApplication();
-  });
-}
-*/
+
 
 // Tab switcher controller
 const trackerTabs = {
