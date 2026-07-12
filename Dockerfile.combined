@@ -37,5 +37,10 @@ COPY shared/src /app/shared/src
 # Place frontend dist where server.ts expects it: /app/frontend/dist
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
+# Test config and test files (optional — only present if they exist)
+COPY backend/vitest.config.mts ./
+COPY backend/vitest.db.config.mts ./
+COPY backend/test ./test
+
 EXPOSE 3000
 CMD ["sh", "-c", "npm run db:init && npm run seed-admin && npm run dev"]

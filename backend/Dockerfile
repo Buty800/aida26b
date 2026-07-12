@@ -15,6 +15,11 @@ COPY tsconfig.base.json /app/tsconfig.base.json
 COPY shared/src /app/shared/src
 COPY database/schema.sql /app/database/schema.sql
 
+# Test config and test files (optional — only present if they exist)
+COPY backend/vitest.config.mts ./
+COPY backend/vitest.db.config.mts ./
+COPY backend/test ./test
+
 EXPOSE 3000
 
 # Initialize the schema and ensure the first admin exists before starting the API

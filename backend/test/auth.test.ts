@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { test } from 'vitest';
-import { app, pool } from '../src/server';
+import { app, pool, adminPool, authPool } from '../src/server';
 import { hashPassword } from '../src/auth';
 
 class FakeDb {
@@ -34,8 +34,14 @@ class FakeDb {
     if (sql.includes('FROM auth.users WHERE username = $1')) {
       return { rows: this.users.filter((user) => user.username === params[0]) };
     }
-    if (sql.startsWith('SELECT password_hash, password_salt FROM auth.users WHERE id')) {
-      const user = this.users.find((item) => item.id === params[0]);
+    if (sql.startsWith('SELECT username, displayname FROM auth.users')) {
+      const rows = this.users
+        .map((u) => ({ username: u.username, displayname: u.displayname || u.username }))
+        .sort((a, b) => a.username.localeCompare(b.username));
+      return { rows };
+    }
+    if (sql.startsWith('SELECT password_hash, password_salt FROM auth.users')) {
+      const user = this.users.find((item) => item.username === params[0]);
       return { rows: user ? [{ password_hash: user.password_hash, password_salt: user.password_salt }] : [] };
     }
     if (sql.startsWith('INSERT INTO auth.sessions')) {
@@ -44,7 +50,7 @@ class FakeDb {
     }
     if (sql.startsWith('SELECT s.id AS session_id')) {
       const session = this.sessions.find((item) => item.token_hash === params[0] && item.expires_at > Date.now());
-      const user = session && this.users.find((item) => item.id === session.user_id && item.is_active);
+      const user = session && this.users.find((item) => item.username === session.user_id && item.is_active);
       return { rows: user ? [{ session_id: 1, ...user }] : [] };
     }
     if (sql.startsWith('DELETE FROM auth.sessions WHERE token_hash')) {
@@ -59,22 +65,23 @@ class FakeDb {
       if (this.users.some((user) => user.username === params[0])) {
         throw Object.assign(new Error('duplicate username'), { code: '23505' });
       }
+      const isRegister = params.length <= 4;
       const user = {
         id: this.nextUserId++,
         username: params[0],
-        email: params[1],
-        password_hash: params[2],
-        password_salt: params[3],
-        role: sql.includes("'user'") ? 'user' : params[4],
+        displayname: params[1],
+        email: isRegister ? null : params[2],
+        password_hash: isRegister ? params[2] : params[3],
+        password_salt: isRegister ? params[3] : params[4],
+        role: isRegister ? 'user' : params[5],
         is_active: true,
-        must_change_password: true,
-        student_numero_libreta: sql.includes('student_numero_libreta') ? params[0] : null,
+        must_change_password: isRegister ? false : true,
       };
       this.users.push(user);
       return { rows: [publicRow(user)] };
     }
     if (sql.startsWith('UPDATE auth.users SET password_hash')) {
-      const user = this.users.find((item) => item.id === params[2]);
+      const user = this.users.find((item) => item.username === params[2]);
       if (!user) return { rows: [] };
       user.password_hash = params[0];
       user.password_salt = params[1];
@@ -121,7 +128,7 @@ class FakeDb {
     }
     if (sql.startsWith('INSERT INTO groups')) {
       const group = {
-        id: 'group-' + Math.random().toString(36).substring(2, 11),
+        id: this.groups.length + 1,
         displayname: params[0],
         description: params[1] || null,
         created_at: new Date().toISOString()
@@ -133,7 +140,7 @@ class FakeDb {
       const userGroup = {
         id_relation: 'relation-uuid',
         user_id: params[0],
-        group_id: params[1],
+        group_id: Number(params[1]),
         role: sql.includes("'admin'") ? 'admin' : (params[2] || 'member'),
         status: sql.includes("'active'") ? 'active' : (params[3] || 'invited'),
         created_at: new Date().toISOString()
@@ -143,8 +150,9 @@ class FakeDb {
     }
     if (sql.startsWith('SELECT g.id, g.displayname, g.description, g.created_at, ug.role')) {
       const userId = params[0];
+      const statusFilter = sql.includes("status = 'invited'") ? 'invited' : 'active';
       const rows = this.user_groups
-        .filter((ug) => ug.user_id === userId && ug.status === 'active')
+        .filter((ug) => ug.user_id === userId && ug.status === statusFilter)
         .map((ug) => {
           const group = this.groups.find((g) => g.id === ug.group_id);
           return {
@@ -152,7 +160,8 @@ class FakeDb {
             displayname: group?.displayname,
             description: group?.description,
             created_at: group?.created_at,
-            role: ug.role
+            role: ug.role,
+            status: ug.status
           };
         })
         .sort((a, b) => new Date(b.created_at || '').getTime() - new Date(a.created_at || '').getTime());
@@ -160,7 +169,7 @@ class FakeDb {
     }
     if (sql.startsWith('SELECT 1 FROM user_group') && sql.includes("role = 'admin' AND status = 'active'")) {
       const userId = params[0];
-      const groupId = params[1];
+      const groupId = Number(params[1]);
       const exists = this.user_groups.some(
         (ug) => ug.user_id === userId && ug.group_id === groupId && ug.role === 'admin' && ug.status === 'active'
       );
@@ -169,7 +178,7 @@ class FakeDb {
 
     if (sql.startsWith('SELECT 1 FROM user_group') && sql.includes("status = 'invited'")) {
       const userId = params[0];
-      const groupId = params[1];
+      const groupId = Number(params[1]);
       const exists = this.user_groups.some(
         (ug) => ug.user_id === userId && ug.group_id === groupId && ug.status === 'invited'
       );
@@ -177,7 +186,7 @@ class FakeDb {
     }
     if (sql.startsWith('SELECT 1 FROM user_group') && sql.includes("status = 'active'")) {
       const userId = params[0];
-      const groupId = params[1];
+      const groupId = Number(params[1]);
       const exists = this.user_groups.some(
         (ug) => ug.user_id === userId && ug.group_id === groupId && ug.status === 'active'
       );
@@ -185,7 +194,7 @@ class FakeDb {
     }
     if (sql.startsWith('SELECT 1 FROM user_group WHERE user_id = $1 AND group_id = $2')) {
       const userId = params[0];
-      const groupId = params[1];
+      const groupId = Number(params[1]);
       const exists = this.user_groups.some(
         (ug) => ug.user_id === userId && ug.group_id === groupId
       );
@@ -193,7 +202,7 @@ class FakeDb {
     }
     if (sql.startsWith("UPDATE user_group SET status = 'active'")) {
       const userId = params[0];
-      const groupId = params[1];
+      const groupId = Number(params[1]);
       const ug = this.user_groups.find((ug) => ug.user_id === userId && ug.group_id === groupId);
       if (ug) {
         ug.status = 'active';
@@ -202,7 +211,7 @@ class FakeDb {
     }
     if (sql.startsWith('DELETE FROM user_group')) {
       const userId = params[0];
-      const groupId = params[1];
+      const groupId = Number(params[1]);
       const initialLength = this.user_groups.length;
       this.user_groups = this.user_groups.filter(
         (ug) => !(ug.user_id === userId && ug.group_id === groupId)
@@ -210,7 +219,7 @@ class FakeDb {
       return { rowCount: initialLength - this.user_groups.length };
     }
     if (sql.startsWith('SELECT ug.user_id, u.displayname, ug.role, ug.status')) {
-      const groupId = params[0];
+      const groupId = Number(params[0]);
       const rows = this.user_groups
         .filter((ug) => ug.group_id === groupId)
         .map((ug) => {
@@ -227,34 +236,29 @@ class FakeDb {
     }
     if (sql.startsWith('INSERT INTO track')) {
       const track = {
-        id: this.tracks.length + 1,
         title: params[0],
         body: params[1] || null,
-        group: params[2],
+        group: Number(params[2]),
         status: params[3],
         created_at: new Date().toISOString()
       };
       this.tracks.push(track);
       return { rows: [track] };
     }
-    if (sql.startsWith('SELECT id, title, body, "group", status, created_at FROM track')) {
-      const groupId = params[0];
+    if (sql.startsWith('SELECT title, body, "group", status, created_at FROM track')) {
+      const groupId = Number(params[0]);
       const rows = this.tracks
         .filter((t) => t.group === groupId)
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       return { rows };
     }
-    if (sql.startsWith('SELECT "group" FROM track WHERE id =')) {
-      const trackId = Number(params[0]);
-      const track = this.tracks.find((t) => Number(t.id) === trackId);
-      return { rows: track ? [track] : [] };
-    }
     if (sql.startsWith('SELECT l.id, l.user_id, u.displayname, l.value, l.fecha, l.commentar FROM log l')) {
-      const trackId = Number(params[0]);
+      const trackGroup = Number(params[0]);
+      const trackTitle = params[1];
       const rows = this.logs
-        .filter((l) => Number(l.track) === trackId)
+        .filter((l) => l.track_group === trackGroup && l.track_title === trackTitle)
         .map((l) => {
-          const u = this.business_users.find((u) => u.username === l.user_id);
+          const u = this.users.find((u) => u.username === l.user_id) || this.business_users.find((u) => u.username === l.user_id);
           return {
             id: l.id,
             user_id: l.user_id,
@@ -269,12 +273,13 @@ class FakeDb {
     }
     if (sql.startsWith('INSERT INTO log')) {
       const newLog = {
-        id: 'log-' + Math.random().toString(36).substring(2, 11),
+        id: this.logs.length + 1,
         user_id: params[0],
-        track: Number(params[1]),
-        value: Number(params[2]),
-        fecha: params[3],
-        commentar: params[4] || null
+        track_group: Number(params[1]),
+        track_title: params[2],
+        value: Number(params[3]),
+        fecha: params[4],
+        commentar: params[5] || null
       };
       this.logs.push(newLog);
       return { rows: [newLog] };
@@ -284,8 +289,8 @@ class FakeDb {
       const rows = this.logs
         .filter((l) => l.user_id === userId)
         .map((l) => {
-          const track = this.tracks.find((t) => Number(t.id) === Number(l.track));
-          const group = this.groups.find((g) => g.id === track?.group);
+          const track = this.tracks.find((t) => t.group === l.track_group && t.title === l.track_title);
+          const group = this.groups.find((g) => Number(g.id) === l.track_group);
           return {
             id: l.id,
             activity_title: track ? track.title : 'Unknown Activity',
@@ -326,7 +331,7 @@ class FakeDb {
       const rel = {
         friend1: params[0],
         friend2: params[1],
-        request: 'pending'
+        request: params[2]
       };
       this.friends_list.push(rel);
       return { rows: [rel] };
@@ -348,19 +353,15 @@ class FakeDb {
       return { rowCount: len - this.friends_list.length };
     }
     if (sql.startsWith('SELECT u.username, u.displayname, COALESCE(SUM(l.value), 0)::INTEGER AS total_value FROM user_group ug')) {
-      const trackId = Number(params[0]);
-      const groupId = params[1];
+      const groupId = Number(params[0]);
+      const trackTitle = params[1];
 
-      // 1. Get all active members of the group
       const activeMembers = this.user_groups.filter((ug) => ug.group_id === groupId && ug.status === 'active');
 
       const rows = activeMembers.map((ug) => {
         const u = this.users.find((u) => u.username === ug.user_id) || this.business_users.find((u) => u.username === ug.user_id);
-        
-        // 2. Sum the logs for this track and user
-        const logsForUserAndTrack = this.logs.filter((l) => l.user_id === ug.user_id && Number(l.track) === trackId);
+        const logsForUserAndTrack = this.logs.filter((l) => l.user_id === ug.user_id && l.track_group === groupId && l.track_title === trackTitle);
         const totalValue = logsForUserAndTrack.reduce((sum, l) => sum + Number(l.value), 0);
-
         return {
           username: ug.user_id,
           displayname: u ? (u.displayname || u.displayName || u.username) : ug.user_id,
@@ -368,9 +369,7 @@ class FakeDb {
         };
       })
       .sort((a, b) => {
-        if (b.total_value !== a.total_value) {
-          return b.total_value - a.total_value;
-        }
+        if (b.total_value !== a.total_value) return b.total_value - a.total_value;
         return a.username.localeCompare(b.username);
       });
 
@@ -385,6 +384,7 @@ function publicRow(user) {
   return {
     id: user.id,
     username: user.username,
+    displayname: user.displayname || user.username,
     email: user.email,
     role: user.role,
     is_active: user.is_active,
@@ -397,18 +397,22 @@ async function makeDb() {
   const editor = await hashPassword('editorpass');
   const reader = await hashPassword('readerpass');
   return new FakeDb([
-    { id: 1, username: 'admin', email: null, role: 'admin', is_active: true, must_change_password: false, password_hash: admin.passwordHash, password_salt: admin.passwordSalt },
-    { id: 2, username: 'editor', email: null, role: 'user', is_active: true, must_change_password: false, password_hash: editor.passwordHash, password_salt: editor.passwordSalt },
-    { id: 3, username: 'reader', email: null, role: 'user', is_active: true, must_change_password: false, password_hash: reader.passwordHash, password_salt: reader.passwordSalt },
+    { id: 1, username: 'admin', displayname: 'admin', email: null, role: 'admin', is_active: true, must_change_password: false, password_hash: admin.passwordHash, password_salt: admin.passwordSalt },
+    { id: 2, username: 'editor', displayname: 'editor', email: null, role: 'user', is_active: true, must_change_password: false, password_hash: editor.passwordHash, password_salt: editor.passwordSalt },
+    { id: 3, username: 'reader', displayname: 'Reader User', email: null, role: 'user', is_active: true, must_change_password: false, password_hash: reader.passwordHash, password_salt: reader.passwordSalt },
   ]);
 }
 
 async function withServer(db, run) {
   pool.query = db.query.bind(db);
+  adminPool.query = db.query.bind(db);
+  authPool.query = db.query.bind(db);
   pool.connect = async () => ({
     query: db.query.bind(db),
     release: async () => {},
   });
+  adminPool.connect = pool.connect;
+  authPool.connect = pool.connect;
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -500,7 +504,7 @@ test('admin can create users and reset passwords', async () => {
     assert.equal(created.status, 201);
     assert.equal(created.body.role, 'user');
 
-    const reset = await request(baseUrl, `/api/admin/users/${created.body.id}/reset-password`, { method: 'POST', cookie: adminCookie, body: { password: 'secondpass' } });
+    const reset = await request(baseUrl, `/api/admin/users/${created.body.username}/reset-password`, { method: 'POST', cookie: adminCookie, body: { password: 'secondpass' } });
     assert.equal(reset.status, 200);
 
     const newCookie = await login(baseUrl, 'newreader', 'secondpass');
@@ -550,11 +554,11 @@ test('GET /api/tracker/users requires authentication and returns the list of all
     const response = await request(baseUrl, '/api/tracker/users', { cookie });
     assert.equal(response.status, 200);
     assert.equal(response.body.success, true);
-    assert.equal(response.body.data.length, 2);
-    assert.equal(response.body.data[0].username, 'alice');
-    assert.equal(response.body.data[0].displayname, 'Alice Smith');
-    assert.equal(response.body.data[1].username, 'charlie');
-    assert.equal(response.body.data[1].displayname, 'Charlie Brown');
+    assert.equal(response.body.data.length, 3);
+    assert.equal(response.body.data[0].username, 'admin');
+    assert.equal(response.body.data[0].displayname, 'admin');
+    assert.equal(response.body.data[1].username, 'editor');
+    assert.equal(response.body.data[1].displayname, 'editor');
   });
 });
 
@@ -815,10 +819,10 @@ test('GET & POST activity records (logs) endpoints work as expected', async () =
         status: 'active'
       }
     });
-    const activityId = successfulPost.body.data.id;
+    const activityTitle = 'Morning Jog';
 
     // 4. User (not group member) attempts to log a record for activity -> should return 403
-    const forbiddenPost = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+    const forbiddenPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
       method: 'POST',
       cookie: cookieReader,
       body: {
@@ -830,24 +834,24 @@ test('GET & POST activity records (logs) endpoints work as expected', async () =
     assert.equal(forbiddenPost.status, 403);
 
     // 5. User (not group member) attempts to get records -> should return 403
-    const forbiddenGet = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+    const forbiddenGet = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
       cookie: cookieReader
     });
     assert.equal(forbiddenGet.status, 403);
 
     // 6. Editor logs a record with invalid payload -> should return 400 (validation error)
-    const invalidPost = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+    const invalidPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
       method: 'POST',
       cookie: cookieEditor,
       body: {
-        value: -5, // value must be >= 0
+        value: -5,
         fecha: 'not-a-date'
       }
     });
     assert.equal(invalidPost.status, 400);
 
     // 7. Editor logs a valid record successfully -> should return 201
-    const recordPost = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+    const recordPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
       method: 'POST',
       cookie: cookieEditor,
       body: {
@@ -862,20 +866,19 @@ test('GET & POST activity records (logs) endpoints work as expected', async () =
     assert.equal(recordPost.body.data.commentar, 'Completed 15km!');
 
     // 8. Editor views the logs for the activity -> should return 200 and one record
-    const recordsGet = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+    const recordsGet = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
       cookie: cookieEditor
     });
     assert.equal(recordsGet.status, 200);
     assert.equal(recordsGet.body.success, true);
     assert.equal(recordsGet.body.data.length, 1);
     assert.equal(recordsGet.body.data[0].value, 15);
-    assert.equal(recordsGet.body.data[0].displayname, 'Editor User');
 
-    // 9. Requesting logs for nonexistent activity -> should return 404
-    const nonexistentGet = await request(baseUrl, '/api/tracker/activities/999/records', {
+    // 9. Requesting logs for nonexistent group -> should return 403
+    const nonexistentGet = await request(baseUrl, `/api/tracker/groups/999/activities/${encodeURIComponent(activityTitle)}/records`, {
       cookie: cookieEditor
     });
-    assert.equal(nonexistentGet.status, 404);
+    assert.equal(nonexistentGet.status, 403);
   });
 });
 
@@ -920,9 +923,9 @@ test('GET /api/tracker/logs retrieves the user last activity log entries across 
         status: 'active'
       }
     });
-    const activityId = activityRes.body.data.id;
+    const activityTitle = 'Pushups';
 
-    const recordRes = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+    const recordRes = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
       method: 'POST',
       cookie,
       body: {
@@ -1033,7 +1036,7 @@ test('GET, POST /friends/request, and POST /friends/respond endpoints work as ex
   });
 });
 
-test('GET /api/tracker/activities/:activityId/comparisons compares total progress across active members', async () => {
+test('GET /api/tracker/groups/:groupId/activities/:activityTitle/comparisons compares total progress across active members', async () => {
   const db = await makeDb();
   db.business_users = [
     { username: 'editor', displayName: 'Editor User', password: '...', created_at: new Date().toISOString() },
@@ -1066,10 +1069,10 @@ test('GET /api/tracker/activities/:activityId/comparisons compares total progres
         status: 'active'
       }
     });
-    const activityId = successfulPost.body.data.id;
+    const activityTitle = 'Morning Jog';
 
     // 4. User (not group member) attempts to view comparisons -> should return 403
-    const forbiddenGet = await request(baseUrl, `/api/tracker/activities/${activityId}/comparisons`, {
+    const forbiddenGet = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/comparisons`, {
       cookie: cookieReader
     });
     assert.equal(forbiddenGet.status, 403);
@@ -1089,7 +1092,7 @@ test('GET /api/tracker/activities/:activityId/comparisons compares total progres
     });
 
     // 7. Reader (now active member) views comparisons -> should return 200, both users have total_value 0
-    const comparisonsInitial = await request(baseUrl, `/api/tracker/activities/${activityId}/comparisons`, {
+    const comparisonsInitial = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/comparisons`, {
       cookie: cookieReader
     });
     assert.equal(comparisonsInitial.status, 200);
@@ -1101,7 +1104,7 @@ test('GET /api/tracker/activities/:activityId/comparisons compares total progres
     assert.equal(comparisonsInitial.body.data[1].total_value, 0);
 
     // 8. Editor logs a record of value 15
-    await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+    await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
       method: 'POST',
       cookie: cookieEditor,
       body: {
@@ -1112,7 +1115,7 @@ test('GET /api/tracker/activities/:activityId/comparisons compares total progres
     });
 
     // 9. Editor logs another record of value 10
-    await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
+    await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/records`, {
       method: 'POST',
       cookie: cookieEditor,
       body: {
@@ -1123,7 +1126,7 @@ test('GET /api/tracker/activities/:activityId/comparisons compares total progres
     });
 
     // 10. GET comparisons again -> Editor should have total_value 25 and Reader 0, sorted by total_value DESC
-    const comparisonsFinal = await request(baseUrl, `/api/tracker/activities/${activityId}/comparisons`, {
+    const comparisonsFinal = await request(baseUrl, `/api/tracker/groups/${groupId}/activities/${encodeURIComponent(activityTitle)}/comparisons`, {
       cookie: cookieReader
     });
     assert.equal(comparisonsFinal.status, 200);
