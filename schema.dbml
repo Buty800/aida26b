@@ -30,7 +30,6 @@ Table auth.sessions {
   token_hash text [unique]
   expires_at timestamptz
   created_at timestamptz
-  impersonating_username varchar
 }
 
 Table auth.audit_log {
@@ -113,6 +112,5 @@ Ref: track.(group, title) < log.(track_group, track_title)
 Ref: auth.users.username < log.user_id
 
 Ref: auth.users.username < auth.sessions.user_id
-Ref: auth.users.username < auth.sessions.impersonating_username
 
 Ref: auth.users.username < auth.audit_log.actor_user_id
