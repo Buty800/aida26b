@@ -2,6 +2,12 @@
 
 El objetivo de este trabajo es armar software para rastrear y comparar entre grupos de amigos las frecuencias y horarios en que ocurre un evento o acción dada para cada persona. Además, puede tomar, agrupar y analizar estadísticas del grupo con varias representaciones visuales. Esto puede servir, por ejemplo, para mantenerse al día con el progreso en grupos de estudio o de lectura, o solo por entretenimiento midiendo acciones cotidianas. 
 
+## uso
+
+`docker-compose -f docker-compose.combined.yml up -d && \ docker exec -it aida26_app npm run seed-example `
+
+Para que tenga datos de ejemplo precargados.
+
 ## Proceso de modelado
 
 Para modelar la base de datos usamos el siguiente diagrama
@@ -42,6 +48,7 @@ Los usuarios de un grupo tienen como posible estado: 'invited', 'active', 'left'
 ## Proceso de desarrollo
 
 Agregamos un endpoint especializado para contar la cantidad de filas en las tablas, para aprovechar el compilador de la base de datos y que no dé toda la información innecesaria
+
 
 ## Aprendizajes
 
