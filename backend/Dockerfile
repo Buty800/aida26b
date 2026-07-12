@@ -13,9 +13,9 @@ COPY backend/src ./src
 COPY backend/tsconfig.json ./
 COPY tsconfig.base.json /app/tsconfig.base.json
 COPY shared/src /app/shared/src
-COPY database/migrations /app/database/migrations
+COPY database/schema.sql /app/database/schema.sql
 
 EXPOSE 3000
 
-# Run migrations and ensure the first admin exists before starting the API
-CMD ["sh", "-c", "npm run migrate && npm run seed-admin && npm run seed-example && npm run dev"]
+# Initialize the schema and ensure the first admin exists before starting the API
+CMD ["sh", "-c", "npm run db:init && npm run seed-admin && npm run dev"]

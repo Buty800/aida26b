@@ -25,8 +25,8 @@ WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json* ./
 RUN npm ci
 
-# Copy database migration files
-COPY database/migrations /app/database/migrations
+# Copy database schema file
+COPY database/schema.sql /app/database/schema.sql
 
 # Copy backend source
 COPY backend/src ./src
@@ -38,4 +38,4 @@ COPY shared/src /app/shared/src
 COPY --from=frontend-build /app/frontend/dist /app/frontend/dist
 
 EXPOSE 3000
-CMD ["sh", "-c", "npm run migrate && npm run seed-admin && npm run seed-example && npm run dev"]
+CMD ["sh", "-c", "npm run db:init && npm run seed-admin && npm run dev"]

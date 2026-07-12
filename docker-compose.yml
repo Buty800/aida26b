@@ -51,9 +51,9 @@ services:
       - ./backend/package.json:/app/backend/package.json
       - ./backend/tsconfig.json:/app/backend/tsconfig.json
       - ./shared/src:/app/shared/src
-      - ./database/migrations:/app/database/migrations
+      - ./database/schema.sql:/app/database/schema.sql
       - ./tsconfig.base.json:/app/tsconfig.base.json
-    command: sh -c "npm run migrate && npm run seed-admin && npm run seed-example && npm run dev"
+    command: sh -c "npm run db:init && npm run seed-admin && npm run dev"
 
   # Frontend Service
   frontend:

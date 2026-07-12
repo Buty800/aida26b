@@ -7,7 +7,7 @@
     "build": "tsc",
     "start": "node dist/backend/src/server.js",
     "dev": "tsx watch src/server.ts",
-    "migrate": "tsx src/migrate.ts",
+    "db:init": "tsx src/setup-db.ts",
     "seed-admin": "tsx src/seed-admin.ts",
     "seed-example": "tsx src/seed-example-data.ts",
     "test": "vitest run --config vitest.config.mts",
