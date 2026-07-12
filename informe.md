@@ -11,7 +11,7 @@ Para que tenga datos de ejemplo precargados.
 ## Proceso de modelado
 
 Para modelar la base de datos usamos el siguiente diagrama
-
+![esquma de DB](esquema.png)
 
 
 Decidimos agregar una tabla de _friends_ porque queríamos que solamente los amigos puedan agregar a gente al grupo, para evitar spam.
