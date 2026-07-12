@@ -115,7 +115,7 @@ export function registerTrackerRoutes(
             must_change_password
           )
         VALUES
-          ($1, $2, NULL, $3, $4, 'editor', true, false)`,
+          ($1, $2, NULL, $3, $4, 'user', true, false)`,
         [
           username,
           displayname,
@@ -130,7 +130,7 @@ export function registerTrackerRoutes(
         user: {
           username,
           displayname,
-          role: 'editor',
+          role: 'user',
         },
       });
     } catch (error) {

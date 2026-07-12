@@ -45,8 +45,7 @@ export const structure = {
           input: 'select',
           options: [
             { value: 'admin', label: { es: 'Admin', en: 'Admin' } },
-            { value: 'editor', label: { es: 'Editor', en: 'Editor' } },
-            { value: 'reader', label: { es: 'Lector', en: 'Reader' } },
+            { value: 'user', label: { es: 'Usuario', en: 'User' } },
           ],
           validator: {
             required: true,
@@ -460,9 +459,8 @@ export const structure = {
     initialPassword: { es: 'Contraseña inicial', en: 'Initial Password' },
     usernameLabel: { es: 'Usuario', en: 'Username' },
     emailLabel: { es: 'Email', en: 'Email' },
-    editorRole: { es: 'Editor', en: 'Editor' },
     adminRole: { es: 'Admin', en: 'Admin' },
-    readerRole: { es: 'Lector', en: 'Reader' },
+    userRole: { es: 'Usuario', en: 'User' },
     addUser: { es: 'Agregar usuario de sistema', en: 'Add system user' },
     roleLabel: { es: 'Rol', en: 'Role' },
 

@@ -20,7 +20,7 @@ import '../styles/styles.css';
 const API_BASE = '/api';
 const PAGE_SIZE = 20;
 
-type Role = 'admin' | 'editor' | 'reader';
+type Role = 'admin' | 'user';
 
 type AuthUser = {
   username: string;
@@ -91,10 +91,6 @@ const tableNavButtons = {} as Record<TableKey, HTMLButtonElement>;
 // -----------------------------------------------------------------------------
 
 let currentUser: AuthUser | null = null;
-
-function canWriteAcademic(): boolean {
-  return currentUser?.role === 'admin' || currentUser?.role === 'editor';
-}
 
 function setMessage(message = ''): void {
   statusMessage.textContent = message;
@@ -590,7 +586,7 @@ function showSection(section: TableKey, pushState = true): void {
     getLocalizedText(tableConfig.addButtonLabel) ||
     `${getLocalizedText(structure.commonText.add)} ${getLocalizedText(tableConfig.uiName)}`;
 
-  addRecordBtn.style.display = canWriteAcademic() ? 'inline-block' : 'none';
+  addRecordBtn.style.display = currentUser?.role === 'admin' ? 'inline-block' : 'none';
 
   if (adminActions) {
     adminActions.hidden = currentUser?.role !== 'admin';
@@ -718,7 +714,7 @@ function renderAnyTable<K extends TableKey>(
   const thead = sharedTable.querySelector('thead')!;
   const tbody = sharedTable.querySelector('tbody')!;
   const tableStructure = structure.tables[tableKey];
-  const showActions = canWriteAcademic();
+  const showActions = currentUser?.role === 'admin';
 
   thead.innerHTML = '';
   tbody.innerHTML = '';
@@ -1553,8 +1549,7 @@ function showUserForm(): void {
 
   const roles: Array<{ value: Role; label: LocalizedText }> = [
     { value: 'admin', label: structure.commonText.adminRole },
-    { value: 'editor', label: structure.commonText.editorRole },
-    { value: 'reader', label: structure.commonText.readerRole },
+    { value: 'user', label: structure.commonText.userRole },
   ];
 
   roles.forEach((r) => {
@@ -1624,7 +1619,7 @@ async function showAnyForm<K extends TableKey>(
   tableKey: K,
   record?: Partial<TableRecordMap[K]>
 ): Promise<void> {
-  if (!canWriteAcademic()) {
+  if (currentUser?.role !== 'admin') {
     setMessage(getLocalizedText(structure.commonText.noEditPermission));
     return;
   }

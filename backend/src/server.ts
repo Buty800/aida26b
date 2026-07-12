@@ -156,21 +156,6 @@ const requireAdmin: RequestHandler = async (req, res, next) => {
   return res.status(403).json({ error: 'Forbidden' });
 };
 
-const requireAcademicWrite: RequestHandler = async (req, res, next) => {
-  const role = (req as AuthedRequest).user?.role;
-
-  if (role === 'admin' || role === 'editor') {
-    return next();
-  }
-
-  await audit(req, 'permission_denied', 'denied', {
-    path: req.path,
-    method: req.method,
-  });
-
-  return res.status(403).json({ error: 'Forbidden' });
-};
-
 // Auth routes
 app.post('/api/auth/login', async (req, res) => {
   try {

@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS auth.users (
     email VARCHAR(255),
     password_hash TEXT NOT NULL,
     password_salt TEXT NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'editor', 'reader')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'user')),
     is_active BOOLEAN NOT NULL DEFAULT true,
     must_change_password BOOLEAN NOT NULL DEFAULT true,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

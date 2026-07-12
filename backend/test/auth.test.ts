@@ -65,7 +65,7 @@ class FakeDb {
         email: params[1],
         password_hash: params[2],
         password_salt: params[3],
-        role: sql.includes("'reader'") ? 'reader' : params[4],
+        role: sql.includes("'user'") ? 'user' : params[4],
         is_active: true,
         must_change_password: true,
         student_numero_libreta: sql.includes('student_numero_libreta') ? params[0] : null,
@@ -398,8 +398,8 @@ async function makeDb() {
   const reader = await hashPassword('readerpass');
   return new FakeDb([
     { id: 1, username: 'admin', email: null, role: 'admin', is_active: true, must_change_password: false, password_hash: admin.passwordHash, password_salt: admin.passwordSalt },
-    { id: 2, username: 'editor', email: null, role: 'editor', is_active: true, must_change_password: false, password_hash: editor.passwordHash, password_salt: editor.passwordSalt },
-    { id: 3, username: 'reader', email: null, role: 'reader', is_active: true, must_change_password: false, password_hash: reader.passwordHash, password_salt: reader.passwordSalt },
+    { id: 2, username: 'editor', email: null, role: 'user', is_active: true, must_change_password: false, password_hash: editor.passwordHash, password_salt: editor.passwordSalt },
+    { id: 3, username: 'reader', email: null, role: 'user', is_active: true, must_change_password: false, password_hash: reader.passwordHash, password_salt: reader.passwordSalt },
   ]);
 }
 
@@ -459,7 +459,7 @@ test('login, me and logout manage the session cookie', async () => {
   });
 });
 
-test('reader can read but cannot mutate academic data', async () => {
+test('user can read but cannot mutate academic data', async () => {
   const db = await makeDb();
   await withServer(db, async (baseUrl) => {
     const cookie = await login(baseUrl, 'reader', 'readerpass');
@@ -475,7 +475,7 @@ test('reader can read but cannot mutate academic data', async () => {
   });
 });
 
-test('editor can create a business user but cannot manage admin users', async () => {
+test('user can create a business user but cannot manage admin users', async () => {
   const db = await makeDb();
   await withServer(db, async (baseUrl) => {
     const cookie = await login(baseUrl, 'editor', 'editorpass');
@@ -487,7 +487,7 @@ test('editor can create a business user but cannot manage admin users', async ()
     // Now returns 403 because raw tables are restricted to admin
     assert.equal(createUser.status, 403);
 
-    const createAdminUser = await request(baseUrl, '/api/admin/users', { method: 'POST', cookie, body: { username: 'other', password: 'otherpass', role: 'reader' } });
+    const createAdminUser = await request(baseUrl, '/api/admin/users', { method: 'POST', cookie, body: { username: 'other', password: 'otherpass', role: 'user' } });
     assert.equal(createAdminUser.status, 403);
   });
 });
@@ -496,9 +496,9 @@ test('admin can create users and reset passwords', async () => {
   const db = await makeDb();
   await withServer(db, async (baseUrl) => {
     const adminCookie = await login(baseUrl, 'admin', 'adminpass');
-    const created = await request(baseUrl, '/api/admin/users', { method: 'POST', cookie: adminCookie, body: { username: 'newreader', password: 'firstpass', role: 'reader' } });
+    const created = await request(baseUrl, '/api/admin/users', { method: 'POST', cookie: adminCookie, body: { username: 'newreader', password: 'firstpass', role: 'user' } });
     assert.equal(created.status, 201);
-    assert.equal(created.body.role, 'reader');
+    assert.equal(created.body.role, 'user');
 
     const reset = await request(baseUrl, `/api/admin/users/${created.body.id}/reset-password`, { method: 'POST', cookie: adminCookie, body: { password: 'secondpass' } });
     assert.equal(reset.status, 200);
@@ -513,7 +513,7 @@ test('first login users must change password before using the app', async () => 
   const db = await makeDb();
   await withServer(db, async (baseUrl) => {
     const adminCookie = await login(baseUrl, 'admin', 'adminpass');
-    await request(baseUrl, '/api/admin/users', { method: 'POST', cookie: adminCookie, body: { username: 'tempuser', password: 'temppass1', role: 'reader' } });
+    await request(baseUrl, '/api/admin/users', { method: 'POST', cookie: adminCookie, body: { username: 'tempuser', password: 'temppass1', role: 'user' } });
 
     const tempCookie = await login(baseUrl, 'tempuser', 'temppass1');
     const blocked = await request(baseUrl, '/api/users', { cookie: tempCookie });
@@ -632,13 +632,13 @@ test('GET & POST group invitations and members endpoints work as expected', asyn
     });
     const groupId = createRes.body.data.id;
 
-    // 3. Reader (not member or admin) tries to view members -> should return 403
+    // 3. User (not member or admin) tries to view members -> should return 403
     const forbiddenMembers = await request(baseUrl, `/api/tracker/groups/${groupId}/members`, {
       cookie: cookieReader
     });
     assert.equal(forbiddenMembers.status, 403);
 
-    // 4. Reader tries to invite editor -> should return 403 (reader is not admin)
+    // 4. User tries to invite editor -> should return 403 (user is not admin)
     const unauthorizedInvite = await request(baseUrl, `/api/tracker/groups/${groupId}/invite`, {
       method: 'POST',
       cookie: cookieReader,
@@ -728,13 +728,13 @@ test('GET & POST group activities (tracks) endpoints work as expected', async ()
     });
     const groupId = createRes.body.data.id;
 
-    // 3. Reader (not a member of the group) attempts to view activities -> should return 403
+    // 3. User (not a member of the group) attempts to view activities -> should return 403
     const forbiddenGet = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
       cookie: cookieReader
     });
     assert.equal(forbiddenGet.status, 403);
 
-    // 4. Reader attempts to create an activity -> should return 403 (reader is not admin/member)
+    // 4. User attempts to create an activity -> should return 403 (user is not admin/member)
     const forbiddenPost = await request(baseUrl, `/api/tracker/groups/${groupId}/activities`, {
       method: 'POST',
       cookie: cookieReader,
@@ -817,7 +817,7 @@ test('GET & POST activity records (logs) endpoints work as expected', async () =
     });
     const activityId = successfulPost.body.data.id;
 
-    // 4. Reader (not group member) attempts to log a record for activity -> should return 403
+    // 4. User (not group member) attempts to log a record for activity -> should return 403
     const forbiddenPost = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
       method: 'POST',
       cookie: cookieReader,
@@ -829,7 +829,7 @@ test('GET & POST activity records (logs) endpoints work as expected', async () =
     });
     assert.equal(forbiddenPost.status, 403);
 
-    // 5. Reader (not group member) attempts to get records -> should return 403
+    // 5. User (not group member) attempts to get records -> should return 403
     const forbiddenGet = await request(baseUrl, `/api/tracker/activities/${activityId}/records`, {
       cookie: cookieReader
     });
@@ -1068,7 +1068,7 @@ test('GET /api/tracker/activities/:activityId/comparisons compares total progres
     });
     const activityId = successfulPost.body.data.id;
 
-    // 4. Reader (not group member) attempts to view comparisons -> should return 403
+    // 4. User (not group member) attempts to view comparisons -> should return 403
     const forbiddenGet = await request(baseUrl, `/api/tracker/activities/${activityId}/comparisons`, {
       cookie: cookieReader
     });
