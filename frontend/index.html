@@ -63,7 +63,15 @@
                 <button id="logout-btn" class="logout-btn">Salir</button>
             </div>
 
-            <nav id='general-nav' class="nav">
+                <div id="downgrade-card" class="admin-downgrade-card" style="display: none;">
+                    <div style="display:flex;gap:8px;align-items:center;padding:10px 0;">
+                        <input id="downgrade-username" type="text" placeholder="@usuario" class="downgrade-input">
+                        <button id="downgrade-btn" class="add-btn" style="margin-bottom:0;">Downgrade</button>
+                        <span style="font-size:0.8rem;color:var(--text-muted);">Actuar como otro usuario — sin vuelta atrás</span>
+                    </div>
+                </div>
+
+                <nav id='general-nav' class="nav">
                 <nav id="table-nav" class="nav">
                 </nav>
                 <nav id="menu-nav" class='nav'>

@@ -2027,6 +2027,10 @@ function renderRoute(): void {
       trackerShell.style.display = 'none';
       currentUserEl.textContent = `${currentUser.username} (${currentUser.role})`;
       if (goToTrackerBtn) goToTrackerBtn.style.display = 'inline-block';
+
+      const downgradeCard = document.getElementById('downgrade-card');
+      if (downgradeCard) downgradeCard.style.display = 'block';
+
       showSection(activeTableKey, false);
     } else {
       // Redirect non-admins to main '/'
@@ -2080,6 +2084,36 @@ if (goToAdminBtn) {
     renderRoute();
   });
 }
+
+const downgradeBtn = document.getElementById('downgrade-btn');
+const downgradeInput = document.getElementById('downgrade-username') as HTMLInputElement | null;
+downgradeBtn?.addEventListener('click', async () => {
+  const username = downgradeInput?.value.trim();
+  if (!username) return;
+
+  try {
+    const response = await apiFetch('/admin/downgrade', {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      showErrorMessage(err.error || 'Error al cambiar de usuario');
+      return;
+    }
+
+    const data = await response.json();
+    currentUser = data.user;
+    showSuccessMessage(`Sesión cambiada a @${data.user.username}`);
+    if (downgradeInput) downgradeInput.value = '';
+    window.history.pushState({}, '', '/');
+    renderRoute();
+  } catch (error) {
+    console.error('Downgrade failed:', error);
+    showErrorMessage('Error de conexión');
+  }
+});
 
 function logout(btn: HTMLElement | null) {
   

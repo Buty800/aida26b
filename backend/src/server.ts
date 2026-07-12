@@ -419,6 +419,58 @@ app.post(
   }
 );
 
+// Admin downgrade session: replaces admin's session with a target user's session
+app.post(
+  '/api/admin/downgrade',
+  requireAuth,
+  requirePasswordReady,
+  requireAdmin,
+  async (req, res) => {
+    try {
+      const username =
+        typeof req.body.username === 'string' ? req.body.username.trim() : '';
+
+      if (!username) {
+        return res.status(400).json({ error: 'Username is required' });
+      }
+
+      const userResult = await authPool.query(
+        `SELECT username, displayname, email, role, is_active, must_change_password
+         FROM auth.users WHERE username = $1 AND is_active = true`,
+        [username]
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+
+      // Delete current admin session
+      const token = getSessionToken(req);
+      await authPool.query('DELETE FROM auth.sessions WHERE token_hash = $1', [
+        auth.hashToken(token),
+      ]);
+
+      // Create new session for target user
+      const newToken = auth.newSessionToken();
+      await authPool.query(
+        `INSERT INTO auth.sessions (user_id, token_hash, expires_at)
+         VALUES ($1, $2, now() + interval '7 days')`,
+        [username, auth.hashToken(newToken)]
+      );
+
+      res.setHeader(
+        'Set-Cookie',
+        auth.sessionCookie(newToken, process.env.NODE_ENV === 'production')
+      );
+
+      return res.json({ user: auth.publicUser(userResult.rows[0]) });
+    } catch (error) {
+      console.error('Error downgrading session:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+);
+
 // Register Tracker endpoints (uses adminPool — no access to password hashes)
 registerTrackerRoutes(app, adminPool, authPool, requireAuth, requirePasswordReady);
 

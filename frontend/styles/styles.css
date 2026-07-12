@@ -612,6 +612,21 @@ textarea:focus {
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
 }
 
+.admin-downgrade-card {
+    margin: 8px 0;
+}
+
+.downgrade-input {
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text);
+    font-size: 0.85rem;
+    width: 200px;
+    box-sizing: border-box;
+}
+
 .tracker-content {
     display: flex;
     flex-direction: column;
@@ -1116,6 +1131,7 @@ textarea:focus {
         
         box-sizing: border-box;
     }
+
 }
 
 /* Stats dashboard */
