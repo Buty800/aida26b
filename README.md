@@ -35,7 +35,7 @@ Este proyecto implementa un sistema de gestión académica para la Facultad de C
 │   ├── package.json
 │   └── tsconfig.json
 ├── database/
-│   └── schema.sql    # Scripts de base de datos
+│   └── schema.sql          # Esquema único de la base de datos
 └── README.md
 ```
 
@@ -49,8 +49,18 @@ Este proyecto implementa un sistema de gestión académica para la Facultad de C
 
 ### Base de Datos
 
-1. Crear una base de datos PostgreSQL llamada `faculty_management`
-2. Ejecutar el script `database/schema.sql` para crear las tablas
+1. Setup inicial (una vez por entorno, como superusuario de Postgres):
+   ```
+   psql -U postgres -c "CREATE USER aida26_owner WITH LOGIN;"
+   psql -U postgres -c "CREATE USER aida26_user WITH LOGIN PASSWORD 'CambiaEsta!';"
+   psql -U postgres -c "CREATE DATABASE faculty_management OWNER aida26_owner;"
+   ```
+
+2. Aplicar el esquema (desde `backend/`):
+   ```
+   npm run db:init
+   ```
+   Esto aplica `database/schema.sql` (idempotente — se puede re-ejecutar).
 
 ### Backend
 
@@ -65,20 +75,30 @@ Este proyecto implementa un sistema de gestión académica para la Facultad de C
    DB_PASSWORD=tu_contraseña
    PORT=3000
    ```
-4. Compilar: `npm run build`
-4. Ejecutar: `npm start` (servirá en http://localhost:3000)
+4. Compilar solo backend: `npm run build`
+5. Ejecutar: `npm start` (servirá en http://localhost:3000 y también servirá `frontend/dist`)
 
 ### Frontend
 
 1. Navegar al directorio `frontend`
 2. Instalar dependencias: `npm install`
-3. Compilar: `npm run build`
-4. Compilar: `npm run build` (compila backend y frontend)
-5. Ejecutar: `npm start` (servirá en http://localhost:3000)
+3. Compilar assets de producción: `npm run build`
+4. Ejecutar el servidor de desarrollo con proxy API: `npm run dev` (servirá en http://localhost:8080)
+
+### Comandos desde la raíz
+
+1. Instalar frontend y backend: `npm run install:all`
+2. Compilar frontend y backend: `npm run build`
+3. Ejecutar backend compilado: `npm start`
+4. Ejecutar backend en desarrollo: `npm run dev:backend`
+5. Ejecutar frontend en desarrollo: `npm run dev:frontend`
+6. Ejecutar tests unitarios frontend+backend: `npm test`
+7. Ejecutar tests de integración con base de datos: `npm run test:db`
+8. Ejecutar tests E2E Playwright: `npm run test:e2e`
 
 ## Uso
 
-1. Ejecutar el backend: `npm start` en el directorio backend (servirá en http://localhost:3000)
+1. Ejecutar el backend: `npm start` en la raíz o en el directorio backend (servirá en http://localhost:3000)
 2. Abrir el navegador en http://localhost:3000
 3. Navegar entre las secciones de Alumnos, Materias e Inscripciones
 4. Usar los botones "Agregar" para crear nuevos registros
@@ -115,6 +135,39 @@ Este proyecto implementa un sistema de gestión académica para la Facultad de C
 - Generar reportes y estadísticas
 - Automatizar procesos de titulación
 - Generar certificados de alumno regular
+
+## Testing de Paginación (Frontend + TypeScript)
+
+La paginación del frontend usa el parámetro `page` y el backend pagina con un `limit` fijo de **20** registros por página.
+El UI muestra el estado como: `Página X de Y (Total: N)` y ofrece botones `Anterior` / `Siguiente`.
+
+### Prerrequisitos
+
+- Backend y base de datos corriendo (la suite crea y borra registros de `students` vía API)
+- Frontend servido en el mismo host/puerto que el backend (por defecto `http://localhost:3000`)
+- Node.js 18+
+
+### Ejecutar los tests
+
+1. Instalar dependencias del frontend:
+   - `cd frontend`
+   - `npm install`
+   - `npx playwright install`
+2. (Opcional) Configurar URL base (por defecto `http://localhost:3000`):
+   - `set E2E_BASE_URL=http://localhost:3000`
+3. Ejecutar (desde `frontend/`):
+   - `npm run test:e2e`
+
+Por defecto corre en modo headless. Para ver el navegador:
+
+- `set E2E_HEADLESS=0`
+
+### Casos cubiertos
+
+- Contenido menor a una página (ej: 5 items → 1/1)
+- Contenido exactamente una página (20 items → 1/1)
+- Contenido mayor a una página (21 items → 1/2, navegación prev/next)
+- Muchas páginas (85 items → 1/5 ... 5/5)
 
 ## Contribución
 

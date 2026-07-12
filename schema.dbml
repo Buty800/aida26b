@@ -1,0 +1,116 @@
+Enum status {
+  invited
+  active
+  left
+}
+
+Enum friend_request {
+  pending_from_lower
+  pending_from_higher
+  accepted
+  rejected
+}
+
+Table auth.users {
+  username varchar [pk]
+  displayname varchar
+  email varchar
+  password_hash text
+  password_salt text
+  role varchar
+  is_active boolean
+  must_change_password boolean
+  created_at timestamptz
+  updated_at timestamptz
+}
+
+Table auth.sessions {
+  id bigint [pk, increment]
+  user_id varchar
+  token_hash text [unique]
+  expires_at timestamptz
+  created_at timestamptz
+}
+
+Table auth.audit_log {
+  id bigint [pk, increment]
+  actor_user_id varchar
+  event_type varchar
+  outcome varchar
+  ip text
+  user_agent text
+  details jsonb
+  created_at timestamptz
+}
+
+Table user_group {
+  id_relation integer [pk, increment]
+  user_id varchar
+  group_id integer
+  created_at timestamp
+  role varchar
+  status status
+
+  indexes {
+    (user_id, group_id) [unique]
+  }
+}
+
+Table friends {
+  friend1 varchar
+  friend2 varchar
+  request friend_request
+
+  indexes {
+    (friend1, friend2) [pk]
+  }
+
+  checks {
+    `friend1 < friend2` [name: "evitar duplicados"]
+  }
+}
+
+Table groups {
+  id integer [pk, increment]
+  displayname varchar
+  description text
+  created_at timestamp
+}
+
+Table track {
+  title varchar
+  body text [note: "Content of the post"]
+  group integer
+  status varchar
+  created_at timestamp
+
+  indexes {
+    (group, title) [pk]
+  }
+}
+
+Table log {
+  id integer [pk, increment]
+  user_id varchar
+  track_group integer
+  track_title varchar
+  value integer [not null]
+  fecha timestamp
+  commentar varchar
+}
+
+Ref: groups.id < user_group.group_id
+Ref: track.group < groups.id
+
+Ref: auth.users.username < friends.friend1
+Ref: auth.users.username < friends.friend2
+
+Ref: auth.users.username < user_group.user_id
+
+Ref: track.(group, title) < log.(track_group, track_title)
+
+Ref: auth.users.username < log.user_id
+
+Ref: auth.users.username < auth.sessions.user_id
+
+Ref: auth.users.username < auth.audit_log.actor_user_id
