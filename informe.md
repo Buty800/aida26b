@@ -1,4 +1,4 @@
-# Tracker de actividades 
+d# Tracker de actividades 
 
 El objetivo de este trabajo es armar software para rastrear y comparar entre grupos de amigos las frecuencias y horarios en que ocurre un evento o acción dada para cada persona. Además, puede tomar, agrupar y analizar estadísticas del grupo con varias representaciones visuales. Esto puede servir, por ejemplo, para mantenerse al día con el progreso en grupos de estudio o de lectura, o solo por entretenimiento midiendo acciones cotidianas. 
 
@@ -49,6 +49,33 @@ Los usuarios de un grupo tienen como posible estado: 'invited', 'active', 'left'
 
 Agregamos un endpoint especializado para contar la cantidad de filas en las tablas, para aprovechar el compilador de la base de datos y que no dé toda la información innecesaria
 
+## Endpoints Propios
+
+* **`GET /api/tracker/users`**: Retorna el listado completo de usuarios registrados (username y displayname) ordenados alfabéticamente. *(Requiere autenticación)*.
+* **`GET /api/tracker/groups`**: Obtiene los grupos activos en los que participa el usuario logueado. *(Requiere autenticación)*.
+* **`POST /api/tracker/groups`**: Crea un nuevo grupo de seguimiento de actividades y define al creador como administrador del mismo. *(Requiere autenticación)*.
+* **`POST /api/tracker/groups/:groupId/invite`**: Envía una invitación para unirse al grupo a otro usuario del sistema. *(Requiere autenticación y ser administrador del grupo)*.
+* **`POST /api/tracker/groups/:groupId/invite/respond`**: Permite responder (`accepted` o `rejected`) a una invitación de grupo pendiente. *(Requiere autenticación)*.
+* **`GET /api/tracker/invitations`**: Retorna la lista de invitaciones a grupos que tiene pendientes de respuesta el usuario logueado. *(Requiere autenticación)*.
+* **`GET /api/tracker/users/:username/invitations`**: Retorna las invitaciones pendientes de un usuario específico. *(Requiere autenticación; accesible por el propio usuario o administradores globales)*.
+* **`GET /api/tracker/groups/:groupId/invitations`**: Retorna la lista de invitaciones pendientes de aceptación de un grupo. *(Requiere autenticación y ser administrador del grupo)*.
+* **`GET /api/tracker/groups/:groupId/members`**: Retorna los miembros y sus roles/estados dentro del grupo especificado. *(Requiere autenticación y ser miembro activo del grupo)*.
+* **`GET /api/tracker/groups/:groupId/activities`**: Obtiene todas las actividades registradas de un grupo. *(Requiere autenticación y ser miembro activo del grupo)*.
+* **`POST /api/tracker/groups/:groupId/activities`**: Agrega una nueva actividad a un grupo. *(Requiere autenticación y ser administrador del grupo)*.
+* **`GET /api/tracker/groups/:groupId/activities/:activityTitle/records`**: Obtiene todos los logs/registros cargados en una actividad específica de un grupo. *(Requiere autenticación y ser miembro activo del grupo)*.
+* **`POST /api/tracker/groups/:groupId/activities/:activityTitle/records`**: Registra un nuevo log de progreso en una actividad (valor numérico, fecha y comentario opcional). *(Requiere autenticación y ser miembro activo del grupo)*.
+* **`GET /api/tracker/groups/:groupId/activities/:activityTitle/comparisons`**: Compara la suma total de valores registrados por cada usuario activo en una actividad, ordenado de mayor a menor. *(Requiere autenticación y ser miembro activo del grupo)*.
+* **`GET /api/tracker/groups/:groupId/activities/:activityTitle/stats`**: Retorna estadísticas consolidadas de la actividad (resumen general, desglose por usuario, desglose por usuario por mes, agregación diaria y los registros históricos). *(Requiere autenticación y ser miembro activo del grupo)*.
+* **`GET /api/tracker/friends`**: Lista los amigos aceptados del usuario logueado, así como las solicitudes de amistad pendientes enviadas y recibidas. *(Requiere autenticación)*.
+* **`POST /api/tracker/friends/request`**: Envía una solicitud de amistad a otro usuario. *(Requiere autenticación)*.
+* **`POST /api/tracker/friends/respond`**: Responde (`accepted` o `rejected`) a una solicitud de amistad recibida. *(Requiere autenticación)*.
+* **`GET /api/tracker/logs`**: Obtiene los últimos 50 registros cargados por el usuario actual en cualquiera de sus actividades. *(Requiere autenticación)*.
+* **`GET /api/tracker/stats`**: Devuelve estadísticas de resumen del usuario (cantidad de grupos activos, amigos aceptados y registros totales cargados), ejecutando consultas SQL optimizadas de conteo rápido. *(Requiere autenticación)*.
+* **`DELETE /api/tracker/groups/:groupId/members/:userId`**: Expulsa a un miembro del grupo (si el solicitante es administrador del grupo) o permite al propio usuario abandonar el grupo. *(Requiere autenticación y ser miembro activo)*.
+* **`DELETE /api/tracker/groups/:groupId`**: Elimina un grupo del sistema y todas sus dependencias. *(Requiere autenticación y ser administrador del grupo)*.
+* **`DELETE /api/tracker/groups/:groupId/activities/:activityTitle`**: Elimina una actividad del grupo y sus logs de progreso asociados. *(Requiere autenticación y ser administrador del grupo)*.
+* **`DELETE /api/tracker/groups/:groupId/activities/:activityTitle/records/:recordId`**: Elimina un log o registro de actividad específico. *(Requiere autenticación; accesible por el creador del registro o el administrador del grupo)*.
+* **`DELETE /api/tracker/friends/:username`**: Elimina una amistad existente o cancela una solicitud. *(Requiere autenticación)*.
 
 ## Aprendizajes
 
@@ -57,5 +84,4 @@ Agregamos un endpoint especializado para contar la cantidad de filas en las tabl
 + Desde 2023 existe una propiedad de CSS que permite deshabilitar el boton de submit visualmente cuando el form no cumple los requisitos. La IA no la sabe usar si no se lo pedis explicitamente. 
 + Es muy importante tener los diagramas de esquemas actualizados con los cambios que se hagan para no equivocarse.
 + Para instalar PostgreSQL no hace falta ser Sudo, pero cuando queres cerrarlo te pide permisos de sudo. 
-
 
