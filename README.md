@@ -20,6 +20,10 @@ Para iniciar el entorno completo (base de datos, backend y frontend) utilizando 
 
 El frontend estará disponible en `http://localhost:3000`.
 
+### Credenciales de administrador
+- Usuario: admin
+- Contraseña: adminpass
+
 ## Documentación detallada
 
 Para conocer más detalles sobre el modelado de la base de datos, las decisiones de arquitectura, UX, seguridad y el desglose de los endpoints de la API, por favor consulta el [Informe de Implementación](informe.md).
