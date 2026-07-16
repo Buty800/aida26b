@@ -4,6 +4,11 @@ Este proyecto es un **tracker de actividades** diseñado para registrar, analiza
 
 El objetivo principal es permitir a los usuarios hacer un seguimiento de sus actividades (como estudio, lectura, ejercicios, etc.) y visualizar estadísticas colectivas mediante representaciones gráficas interactivas, fomentando la colaboración y el entretenimiento.
 
+## Integrantes del grupo
+- Bautista de Suto Nagy
+- Iñaki Frutos
+- Leandro Horane
+
 ## Cómo ejecutar el proyecto
 
 Para iniciar el entorno completo (base de datos, backend y frontend) utilizando Docker:
