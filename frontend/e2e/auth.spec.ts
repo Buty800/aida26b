@@ -61,11 +61,17 @@ test.describe('Auth & Registration', () => {
     await registerUser(page, creds);
     await logout(page);
 
+    await page.goto('/');
+
     await page.locator('#login-username').fill(creds.username);
     await page.locator('#login-password').fill('wrongpassword');
-    await page.locator('#login-submit-btn').click({ force: true });
+
+    const loginResp = page.waitForResponse((r) => r.url().includes('/api/auth/login'));
+    await page.locator('#login-password').press('Enter');
+    await loginResp;
 
     await expect(page.locator('#login-error')).toBeVisible();
+    await expect(page.locator('#login-error')).toContainText(/inválidas|invalid/i);
     await expect(page.locator('#tracker-shell')).toBeHidden();
   });
 

@@ -30,7 +30,7 @@ export async function registerUser(page: Page, creds: Credentials): Promise<void
     await page.locator('#login-displayname').fill(creds.displayname);
   }
   await page.locator('#login-password').fill(creds.password);
-  await page.locator('#login-submit-btn').click({ force: true });
+  await page.locator('#login-password').press('Enter');
   await expectTrackerShell(page);
 }
 
@@ -38,7 +38,7 @@ export async function loginUser(page: Page, creds: Credentials): Promise<void> {
   await page.goto('/');
   await page.locator('#login-username').fill(creds.username);
   await page.locator('#login-password').fill(creds.password);
-  await page.locator('#login-submit-btn').click({ force: true });
+  await page.locator('#login-password').press('Enter');
   await expectTrackerShell(page);
 }
 
