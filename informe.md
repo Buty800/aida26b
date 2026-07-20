@@ -77,6 +77,12 @@ Agregamos un endpoint especializado para contar la cantidad de filas en las tabl
 * **`DELETE /api/tracker/groups/:groupId/activities/:activityTitle/records/:recordId`**: Elimina un log o registro de actividad específico. *(Requiere autenticación; accesible por el creador del registro o el administrador del grupo)*.
 * **`DELETE /api/tracker/friends/:username`**: Elimina una amistad existente o cancela una solicitud. *(Requiere autenticación)*.
 
+## Tests
+
+Para correrlos, tener corriendo la aplicación y correr en la carpeta aida26 `npm run e2e:run`. 
+
+Se implementó tests que verificaban la funcionalidad del login, pasar de secciones y que aparezcan visibles los botones correctos, así como que un admin pueda acceder a la url /panel, mientras que los no-admin no tengan el boton para acceder directamente visible. Y por último el downgrade de un admin a un usuario en particular.
+
 ## Aprendizajes
 
 + Postgres en Windows hay que tener en cuenta que si lo tenés activo el servicio y abris el postgresql, entonces va a ir al que tengas local y no en docker, generando conflictos
