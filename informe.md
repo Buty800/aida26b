@@ -79,9 +79,36 @@ Agregamos un endpoint especializado para contar la cantidad de filas en las tabl
 
 ## Tests
 
-Para correrlos, tener corriendo la aplicación y correr en la carpeta aida26 `npm run e2e:run`. 
+Para correr la suite de pruebas E2E (con la aplicación corriendo):
+```bash
+npm run e2e:run
+```
 
-Se implementó tests que verificaban la funcionalidad del login, pasar de secciones y que aparezcan visibles los botones correctos, así como que un admin pueda acceder a la url /panel, mientras que los no-admin no tengan el boton para acceder directamente visible. Y por último el downgrade de un admin a un usuario en particular.
+También se pueden ejecutar las pruebas unitarias e integración de frontend y backend mediante:
+```bash
+npm run test
+```
+
+### Funcionalidades y Capas Testeadas
+
+1. **Pruebas End-to-End (E2E) con Playwright**:
+   - **Autenticación y Registro (`auth.spec.ts`)**: Registro de nuevos usuarios y redirección al panel principal, prevención de registros con nombres de usuario duplicados (verificando el mensaje de error sin romper la app), manejo de errores ante contraseñas incorrectas en el login y flujo completo de cierre de sesión (logout).
+   - **Control de Acceso, Navegación y Roles (`dashboardAccess.spec.ts`)**: Control de permisos y visibilidad condicional según el rol (los usuarios no-admin no ven el botón del panel ni pueden acceder a `/panel`), navegación fluida entre pestañas (Dashboard, Grupos, Amigos) y la funcionalidad de **downgrade (session swap)**, donde un administrador degrada su sesión para actuar como un usuario regular, perdiendo el acceso al panel.
+   - **Paginación y Filtrado (`pagination.spec.ts`)**: Comprobación del comportamiento de paginación ante distintos volúmenes de datos (menos que el límite, límite exacto y datasets extensos), navegación entre páginas ("Siguiente" / "Anterior"), filtrado dinámico por coincidencia parcial y exacta, y validación de restricciones en la API (rechazo HTTP 400 ante inputs que superen la longitud máxima).
+
+2. **Pruebas de Backend e Integración (`auth.test.ts`)**:
+   - Validación aislada del backend utilizando un mock de base de datos (`FakeDb`) para evaluar la lógica de autenticación, hashing y salting de contraseñas, auditoría de eventos (`audit_log`), sesiones en `auth.sessions` y la gestión de endpoints del tracker (`/api/tracker/*`: grupos, invitaciones, miembros, actividades, registros/logs y amigos).
+
+
+### Consideraciones en el Diseño de los Tests
+
+- **Aislamiento y Limpieza de Datos**: Generación de identificadores y usuarios únicos por prueba (`uniqueUsername`, timestamps y prefijo de paralelismo `e2e_${timestamp}_${index}`) para evitar carreras de datos (*data racing*) en Playwright, sumado a hooks de limpieza post-ejecución (`afterEach`/`afterAll`).
+- **Pruebas de Backend Aisladas (FakeDb)**: Implementación de un mock en memoria (`FakeDb`) para testear endpoints del tracker, hashing de contraseñas, auditoría (`audit_log`) y sesiones (`auth.sessions`) sin depender de una base de datos PostgreSQL viva en los unit tests.
+- **Resiliencia de Selectores**: Empleo de helpers estandarizados (`loginUser`, `registerUser`, `expectTrackerShell`, `adminButton`) y selectores estables (IDs y roles ARIA) para prevenir pruebas frágiles (*flaky*) en los tests E2E.
+- **Cobertura de Happy Path y Seguridad**: Validación tanto de flujos normales (registro, navegación, paginación) como de casos límite y de seguridad (registros duplicados, credenciales inválidas, rechazos HTTP 400 por exceso de caracteres y restricciones de acceso por rol a `/panel`).
+
+
+
 
 ## Aprendizajes
 
